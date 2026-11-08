@@ -22,7 +22,7 @@ button.on{background:var(--accent-soft);border-color:var(--accent);color:var(--a
 button.danger{color:var(--err)}
 button:disabled{opacity:.45;cursor:default}
 button.sm{padding:3px 8px;font-size:12px}
-nav{display:grid;grid-template-columns:repeat(5,1fr);border-bottom:1px solid var(--line)}
+nav{display:grid;grid-template-columns:repeat(6,1fr);border-bottom:1px solid var(--line)}
 nav button{border:0;border-radius:0;border-bottom:3px solid transparent;padding:9px 2px;background:none;color:var(--muted)}
 nav button.on{color:var(--accent);border-bottom-color:var(--accent);font-weight:700;background:none}
 .panel{flex:1;overflow:auto;padding:12px;display:none;min-height:0}
@@ -56,14 +56,17 @@ h3{font-size:13px;margin:14px 0 6px;color:var(--muted)}
 .nv #map.leaflet-container{background:transparent}
 #modebar{position:absolute;left:50%;top:10px;transform:translateX(-50%);z-index:1000;background:#18201b;color:#fff;border-radius:10px;padding:8px 12px;display:none;gap:8px;align-items:center;box-shadow:0 2px 10px rgba(0,0,0,.3);font-size:13px}
 #modebar button{padding:4px 10px;font-size:12px}
+#ptbar{position:absolute;left:56px;top:10px;z-index:1000;background:#fff;border:1px solid var(--line);border-radius:10px;padding:6px;display:none;gap:4px;align-items:center;box-shadow:0 2px 8px rgba(0,0,0,.18);font-size:13px;flex-wrap:wrap;max-width:calc(100% - 70px)}
+#ptbar .t{font-weight:700;color:var(--muted);padding:0 4px;font-size:12px}#ptbar button{padding:4px 10px;font-size:12px}#ptbar select{width:auto;padding:4px 6px;font-size:12px}
+.vx.pick{background:var(--sel);transform:scale(1.4)}.vx.del{border-color:#d32f2f;cursor:pointer}
 #toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#18201b;color:#fff;padding:9px 14px;border-radius:10px;z-index:2000;display:none;max-width:70vw;font-size:13px}
 .cpm{position:relative;width:0;height:0}
 .cpm i{position:absolute;left:-9px;top:-9px;width:18px;height:18px;border-radius:50%;background:#fff;border:3px solid #18201b;box-sizing:border-box;box-shadow:0 1px 3px rgba(0,0,0,.4)}
 .cpm.pk i{background:var(--peak);border-color:#fff}
 .cpm.on i{border-color:var(--sel);box-shadow:0 0 0 4px rgba(232,89,12,.35)}
-.cpm b{position:absolute;left:12px;top:-10px;background:rgba(255,255,255,.94);border:1px solid #c9cfc6;border-radius:6px;padding:0 5px;font-size:11px;white-space:nowrap;font-weight:700}
+.cpm b{pointer-events:none;position:absolute;left:12px;top:-10px;background:rgba(255,255,255,.94);border:1px solid #c9cfc6;border-radius:6px;padding:0 5px;font-size:11px;white-space:nowrap;font-weight:700}
 .cpm.pk b{color:var(--peak);border-color:var(--peak)}
-.vx{width:10px;height:10px;margin:-5px 0 0 -5px;background:#fff;border:2px solid var(--sel);border-radius:2px;box-sizing:border-box}
+.vx{width:11px;height:11px;margin:-5.5px 0 0 -5.5px;background:#fff;border:2px solid var(--sel);border-radius:2px;box-sizing:border-box}
 .vg{width:9px;height:9px;margin:-4.5px 0 0 -4.5px;background:rgba(232,89,12,.35);border:1px solid var(--sel);border-radius:50%;box-sizing:border-box}
 .rh{width:14px;height:14px;margin:-7px 0 0 -7px;background:#d32f2f;border:2px solid #fff;border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,.4);cursor:ew-resize}
 .tg{position:relative;width:0;height:0}
@@ -89,15 +92,16 @@ kbd{font-size:11px;border:1px solid var(--line);border-bottom-width:2px;border-r
       <p class="msg" id="dirty" style="margin:0"></p>
     </div>
     <nav id="tabs">
-      <button data-t="course" class="on">코스</button><button data-t="cps">지점</button><button data-t="segs">구간</button><button data-t="gpx">GPX</button><button data-t="repo">저장소</button>
+      <button data-t="course" class="on">코스</button><button data-t="cps">지점</button><button data-t="segs">구간</button><button data-t="recs">기록</button><button data-t="gpx">GPX</button><button data-t="repo">저장소</button>
     </nav>
     <section class="panel on" id="p-course"></section>
     <section class="panel" id="p-cps"></section>
     <section class="panel" id="p-segs"></section>
+    <section class="panel" id="p-recs"></section>
     <section class="panel" id="p-gpx"></section>
     <section class="panel" id="p-repo"></section>
   </aside>
-  <div id="mapWrap" style="position:relative;min-width:0"><div id="nbox"><div id="nmap"></div></div><div id="map"></div><div id="modebar"></div></div>
+  <div id="mapWrap" style="position:relative;min-width:0"><div id="nbox"><div id="nmap"></div></div><div id="map"></div><div id="modebar"></div><div id="ptbar"></div></div>
 </div>
 <div id="toast"></div>
 <div class="drop" id="drop">코스(.json)나 GPX(.gpx) 파일을 놓으세요</div>
@@ -208,7 +212,7 @@ function loadCourse(o,src){
   CP.sort(function(a,b){return a.km-b.km;});
   SEG=buildSegs(calibrate(Array.isArray(o.track)?o.track:[],CP));HOW=SEG.map(function(){return "";});
   undoS=[];redoS=[];sel={t:null,i:-1};lastSaved=null;setDirty(false);
-  drawAll(true);renderPanels();toast("'"+META.name+"' 열었어요 · 지점 "+CP.length+" · 좌표 "+exportTrack().length);
+  drawAll(true);autoRecs();renderPanels();toast("'"+META.name+"' 열었어요 · 지점 "+CP.length+" · 좌표 "+exportTrack().length);
 }
 function parseGpx(t){var d=new DOMParser().parseFromString(t,"application/xml");if(d.getElementsByTagName("parsererror").length)throw new Error("GPX를 읽지 못했어요");
   function pts(tag){return [].slice.call(d.getElementsByTagName(tag)).map(function(e){var el=e.getElementsByTagName("ele")[0];return [+e.getAttribute("lat"),+e.getAttribute("lon"),el?+el.textContent:null];}).filter(function(p){return isFinite(p[0])&&isFinite(p[1]);});}
@@ -371,7 +375,7 @@ function drawRoute(){gRoute.clearLayers();
   SEG.forEach(function(s,i){if(s.length<2)return;var ll=s.map(function(p){return [p[0],p[1]];}),on=sel.t==="seg"&&sel.i===i;
     L.polyline(ll,{color:"#fff",weight:on?11:9,opacity:.95,interactive:false}).addTo(gRoute);
     var pl=L.polyline(ll,{color:segColor(i),weight:on?6:5,opacity:1,dashArray:CP[i].route==="fixed"?"10 6":null,lineCap:"round",lineJoin:"round"}).addTo(gRoute);
-    pl.on("click",function(ev){if(mode)return onMapClick(ev);L.DomEvent.stopPropagation(ev);select("seg",i);});
+    pl.on("click",function(ev){if(mode)return onMapClick(ev);L.DomEvent.stopPropagation(ev);if(PM==="add"&&editSegs().indexOf(i)>=0){insertPoint([ev.latlng.lat,ev.latlng.lng]);return;}select("seg",i);});
     pl.on("contextmenu",function(ev){L.DomEvent.stopPropagation(ev);if(mode)return;splitAt(i,[ev.latlng.lat,ev.latlng.lng]);});
     pl.bindTooltip((i+1)+"구간 · "+CP[i].name+" → "+CP[i+1].name,{sticky:true});});
   // 지점과 경로 끝이 떨어져 있으면 점선으로 표시
@@ -396,21 +400,48 @@ function moveCp(i,ll,live){var c=CP[i];c.lat=r6(ll[0]);c.lon=r6(ll[1]);
   if(i<SEG.length&&SEG[i].length){SEG[i][0]=[ll[0],ll[1],SEG[i][0][2]];}
   if(i>0&&SEG[i-1].length){var s=SEG[i-1];s[s.length-1]=[ll[0],ll[1],s[s.length-1][2]];}
   if(live){drawRoute();drawEdit();}else{drawAll();renderPanels();}}
-// 선택한 구간의 꼭짓점 편집
-function drawEdit(){gEdit.clearLayers();if(sel.t!=="seg"||mode)return;var i=sel.i,s=SEG[i];if(!s||s.length<2)return;
-  if(s.length>900){return;}
-  s.forEach(function(p,k){if(k===0||k===s.length-1)return;
-    var m=L.marker([p[0],p[1]],{icon:L.divIcon({className:"",iconSize:[0,0],html:'<div class="vx"></div>'}),draggable:true,zIndexOffset:300}).addTo(gEdit);
-    m.on("dragstart",function(){push();});
-    m.on("drag",function(ev){var ll=ev.target.getLatLng();s[k]=[ll.lat,ll.lng,null];drawRoute();});
-    m.on("dragend",function(){HOW[i]="편집";drawEdit();renderPanels();});
-    m.on("contextmenu",function(ev){L.DomEvent.stopPropagation(ev);push();s.splice(k,1);HOW[i]="편집";drawRoute();drawEdit();renderPanels();});
-    m.on("dblclick",function(ev){L.DomEvent.stopPropagation(ev);push();s.splice(k,1);HOW[i]="편집";drawRoute();drawEdit();renderPanels();});});
-  for(var k=1;k<s.length;k++){(function(k){var a=s[k-1],b=s[k];if(hav(a,b)<8)return;
-    var g=L.marker([(a[0]+b[0])/2,(a[1]+b[1])/2],{icon:L.divIcon({className:"",iconSize:[0,0],html:'<div class="vg"></div>'}),draggable:true,zIndexOffset:200}).addTo(gEdit);
-    g.on("dragstart",function(){push();s.splice(k,0,[(a[0]+b[0])/2,(a[1]+b[1])/2,null]);});
-    g.on("drag",function(ev){var ll=ev.target.getLatLng();s[k]=[ll.lat,ll.lng,null];drawRoute();});
-    g.on("dragend",function(){HOW[i]="편집";drawEdit();renderPanels();});})(k);}}
+// 꼭짓점(경로의 방향이 바뀌는 점) 편집: 구간을 고르면 그 구간, 지점을 고르면 앞뒤 두 구간
+var PM="move",PRANGE=null;
+function editSegs(){if(mode)return [];if(sel.t==="seg")return SEG[sel.i]&&SEG[sel.i].length>=2?[sel.i]:[];
+  if(sel.t==="cp")return [sel.i-1,sel.i].filter(function(i){return i>=0&&i<SEG.length&&SEG[i].length>=2;});return [];}
+function editDone(i){HOW[i]="편집";drawRoute();drawEdit();renderSegs();renderCourseStats();}
+function vxIcon(on){return L.divIcon({className:"",iconSize:[0,0],html:'<div class="vx'+(on?" pick":"")+(PM==="del"||PM==="range"?" del":"")+'"></div>'});}
+function drawEdit(){gEdit.clearLayers();var list=editSegs();paintPtbar(list);
+  list.forEach(function(i){var s=SEG[i];if(s.length>1500)return;
+    s.forEach(function(p,k){if(k===0||k===s.length-1)return;var picked=PRANGE&&PRANGE.i===i&&PRANGE.k===k;
+      var m=L.marker([p[0],p[1]],{icon:vxIcon(picked),draggable:PM==="move"||PM==="add",zIndexOffset:1500,bubblingMouseEvents:false}).addTo(gEdit);
+      m.bindTooltip((i+1)+"구간 "+k+"번 점",{direction:"top",offset:[0,-6]});
+      m.on("dragstart",function(){push();});
+      m.on("drag",function(ev){var ll=ev.target.getLatLng();s[k]=[ll.lat,ll.lng,null];drawRoute();});
+      m.on("dragend",function(){editDone(i);});
+      m.on("click",function(ev){L.DomEvent.stopPropagation(ev);
+        if(PM==="del"){push();s.splice(k,1);editDone(i);}
+        else if(PM==="range"){if(!PRANGE||PRANGE.i!==i){PRANGE={i:i,k:k};drawEdit();toast("끝 점을 누르면 두 점 사이의 점을 지워요");}
+          else{var a=Math.min(PRANGE.k,k),b=Math.max(PRANGE.k,k);PRANGE=null;if(b-a<2){drawEdit();toast("사이에 지울 점이 없어요");return;}push();s.splice(a+1,b-a-1);editDone(i);toast((b-a-1)+"개 점을 지웠어요");}}});
+      m.on("contextmenu",function(ev){L.DomEvent.stopPropagation(ev);push();s.splice(k,1);editDone(i);});
+      m.on("dblclick",function(ev){L.DomEvent.stopPropagation(ev);push();s.splice(k,1);editDone(i);});});
+    if(PM!=="move")return;
+    for(var k=1;k<s.length;k++){(function(k){var a=s[k-1],b=s[k];if(hav(a,b)<6)return;
+      var g=L.marker([(a[0]+b[0])/2,(a[1]+b[1])/2],{icon:L.divIcon({className:"",iconSize:[0,0],html:'<div class="vg"></div>'}),draggable:true,zIndexOffset:200}).addTo(gEdit);
+      g.on("dragstart",function(){push();s.splice(k,0,[(a[0]+b[0])/2,(a[1]+b[1])/2,null]);});
+      g.on("drag",function(ev){var ll=ev.target.getLatLng();s[k]=[ll.lat,ll.lng,null];drawRoute();});
+      g.on("dragend",function(){editDone(i);});})(k);}});}
+// 점 추가: 고른 구간 중 경로가 가장 덜 늘어나는 자리에 끼워 넣는다
+function insertPoint(ll){var list=editSegs(),best=null;
+  list.forEach(function(i){var s=SEG[i];for(var k=1;k<s.length;k++){var c=hav(s[k-1],ll)+hav(ll,s[k])-hav(s[k-1],s[k]);if(!best||c<best.c)best={i:i,k:k,c:c};}});
+  if(!best)return false;push();SEG[best.i].splice(best.k,0,[ll[0],ll[1],null]);editDone(best.i);return true;}
+function setPM(m){PM=m;PRANGE=null;ls("ce.pm",m);map.getContainer().style.cursor=m==="add"?"copy":"";drawEdit();}
+function paintPtbar(list){var bar=$("ptbar");if(!list.length){bar.style.display="none";map.getContainer().style.cursor=mode?"crosshair":"";return;}
+  bar.style.display="flex";bar.innerHTML="";
+  var n=list.reduce(function(a,i){return a+SEG[i].length;},0);
+  bar.appendChild(h("span",{cls:"t",text:(list.length>1?(list[0]+1)+"·"+(list[1]+1)+"구간":(list[0]+1)+"구간")+" 점 "+n+"개"}));
+  [["move","이동","끌어서 옮기기 · 사이 점을 끌면 새 점 (1)"],["add","추가","지도를 누르면 그 자리에 점 추가 (2)"],["del","삭제","점을 누르면 삭제 (3)"],["range","범위 삭제","두 점을 차례로 누르면 그 사이 점을 모두 삭제 (4)"]].forEach(function(x){
+    bar.appendChild(h("button",{cls:PM===x[0]?"on":"",text:x[1],title:x[2],onclick:function(){setPM(x[0]);}}));});
+  var tol=h("select",{title:"방향이 거의 안 바뀌는 점을 지워요"},[h("option",{value:"",text:"점 줄이기…"})].concat([2,5,10,20].map(function(v){return h("option",{value:v,text:v+"m 이내 정리"});})));
+  tol.onchange=function(){var t=+tol.value;if(!t)return;push();var before=0,after=0;list.forEach(function(i){before+=SEG[i].length;SEG[i]=simplify(SEG[i],t);after+=SEG[i].length;HOW[i]="편집";});drawAll();renderPanels();toast(before+" → "+after+"점");};
+  bar.appendChild(tol);
+  bar.appendChild(h("button",{text:"↶",title:"되돌리기 (Ctrl+Z)",onclick:undo}));
+  if(list.some(function(i){return SEG[i].length>1500;}))bar.appendChild(h("span",{cls:"t bad",text:"점이 너무 많아요 · 먼저 '점 줄이기'"}));}
 // 프로그램 인증 지점 (산 목록)
 function tgtCertM(t){return +t.certM>0?+t.certM:(t.approx?300:200);}
 function catTargets(){if(!CAT)return [];var inP={};(CAT.programs||[]).forEach(function(p){(p.targets||[]).forEach(function(t){(inP[t]=inP[t]||[]).push(p.n||p.id);});});
@@ -428,7 +459,7 @@ function fitAll(){var b=courseBox(0.002);if(b)map.fitBounds([[b[0],b[1]],[b[2],b
 function select(t,i){sel={t:t,i:i};drawAll();renderPanels();
   if(t==="cp")showTab("cps");else if(t==="seg")showTab("segs");else if(t==="tgt")showTab("course");
   setTimeout(function(){var e=document.querySelector(".it.on");if(e)e.scrollIntoView({block:"nearest"});},30);}
-map.on("click",function(ev){if(mode)return onMapClick(ev);if(sel.t){sel={t:null,i:-1};drawAll();renderPanels();}});
+map.on("click",function(ev){if(mode)return onMapClick(ev);if(PM==="add"&&editSegs().length){insertPoint([ev.latlng.lat,ev.latlng.lng]);return;}if(sel.t){sel={t:null,i:-1};drawAll();renderPanels();}});
 
 // ============ 편집 동작 ============
 function splitAt(i,ll){ // 구간 i 위의 점에 새 지점 추가
@@ -492,7 +523,8 @@ function inp(label,val,on,attrs){var e=h("input",Object.assign({value:val==null?
 function cbx(label,val,on){var e=h("input",{type:"checkbox",checked:val});e.addEventListener("change",function(){on(e.checked);});return h("label",{cls:"chk"},[e,label]);}
 function renderPanels(){
   $("ttl").textContent=META?META.name:"산행 페이스 코스 편집기";document.title=(META?META.name+" · ":"")+"산행 페이스 코스 편집기";
-  renderCourse();renderCps();renderSegs();renderGpx();renderRepo();setDirty(dirty);}
+  renderCourse();renderCps();renderSegs();renderRecs();renderGpx();renderRepo();setDirty(dirty);}
+function renderCourseStats(){if($("p-course").classList.contains("on"))renderCourse();setDirty(true);}
 function renderCourse(){var p=$("p-course");p.textContent="";
   if(!META){p.appendChild(h("div",null,[h("p",{cls:"msg",html:"<b>시작하기</b><br>① <b>저장소</b> 탭에서 GitHub 토큰을 넣고 앱의 코스를 불러오거나<br>② <b>파일 열기</b>로 Claude가 만든 코스(.json)를 열거나<br>③ GPX 파일을 열면 그 경로로 새 코스를 만들어요.<br>파일을 지도 위로 끌어다 놓아도 돼요."}),
     h("button",{cls:"pri",text:"파일 열기",onclick:function(){$("fileIn").click();}})]));tgtPanel(p);legend(p);return;}
@@ -559,7 +591,7 @@ function cpForm(i){var c=CP[i],f=h("div",{cls:"box"});
     h("button",{cls:"danger",text:"지점 삭제",disabled:i===0||i===CP.length-1,onclick:function(){delCp(i);}})]));
   return f;}
 function renderSegs(){var p=$("p-segs");p.textContent="";if(!META){p.appendChild(h("p",{cls:"msg",text:"코스를 먼저 여세요."}));return;}
-  p.appendChild(h("p",{cls:"msg",text:"구간을 고르면 주황색으로 보이고 꼭짓점을 끌어 고칠 수 있어요. 흰 네모 = 꼭짓점(오른쪽 클릭으로 삭제), 작은 주황 점 = 끌어서 새 꼭짓점."}));
+  p.appendChild(h("p",{cls:"msg",text:"구간(또는 지점)을 고르면 지도 위에 점 편집 도구가 나와요. 점 = 경로의 방향이 바뀌는 곳(흰 네모). 이동: 끌기 · 추가: 지도 클릭 · 삭제: 점 클릭 · 범위 삭제: 두 점 클릭. 단축키 1~4, Esc."}));
   var box=h("div",{cls:"list"});
   SEG.forEach(function(s,i){var on=sel.t==="seg"&&sel.i===i,plan=CP[i+1].km-CP[i].km,m=lenM(s)/1000,ratio=plan>0.01?m/plan:1,bad=ratio<0.75||ratio>1.35;
     box.appendChild(h("button",{cls:"it"+(on?" on":""),onclick:function(){if(on){sel={t:null,i:-1};drawAll();renderPanels();return;}select("seg",i);if(s.length>1)map.fitBounds(L.latLngBounds(s.map(function(q){return [q[0],q[1]];})).pad(0.2));}},[h("span",{cls:"n",text:String(i+1)}),
@@ -570,7 +602,7 @@ function renderSegs(){var p=$("p-segs");p.textContent="";if(!META){p.appendChild
         h("button",{text:"GPX로 바꾸기",disabled:!GPX,onclick:function(){var e=segEnds(i),r=gpxSlice(e[0],e[1]);if(!r){toast("구간 양 끝이 GPX에서 300m 넘게 떨어져 있어요");return;}push();SEG[i]=r.pts;HOW[i]="GPX";drawAll();renderPanels();}})]));
       b.appendChild(h("div",{cls:"row",style:"margin-top:6px"},[cbx("고정 구간 (도로·길찾기로 그린 곳, 전체 맞추기에서 그대로 둠)",CP[i].route==="fixed",function(v){push();CP[i].route=v?"fixed":"";drawAll();renderPanels();})]));
       b.appendChild(h("div",{cls:"row",style:"margin-top:6px"},[h("button",{cls:"sm",text:"꼭짓점 줄이기 (3m)",onclick:function(){push();var n0=SEG[i].length;SEG[i]=simplify(SEG[i],3);toast(n0+" → "+SEG[i].length+"점");drawAll();renderPanels();}}),
-        s.length>900?h("span",{cls:"msg bad",text:"점이 많아 꼭짓점 편집이 꺼졌어요 · 먼저 줄이세요"}):null]));
+        s.length>1500?h("span",{cls:"msg bad",text:"점이 많아 점 편집이 꺼졌어요 · 먼저 줄이세요"}):null]));
       box.appendChild(b);}});
   p.appendChild(box);}
 function renderGpx(){var p=$("p-gpx");p.textContent="";
@@ -586,7 +618,7 @@ function renderGpx(){var p=$("p-gpx");p.textContent="";
 // ============ GitHub 저장소 ============
 var REPO=ls("ce.repo")||"hsmjis-cmyk/hikeApp",TOKEN=ls("ce.token")||"",CS_DIR="cloud/courses/",CAT_PATH="catalog/catalog.json",LIST=null,REPO_MSG="";
 function encPath(p){return p.split("/").map(encodeURIComponent).join("/");}
-function gh(method,path,body){return fetch("https://api.github.com/repos/"+REPO+"/contents/"+encPath(path)+(method==="GET"?"?t="+Date.now():""),{method:method,cache:"no-store",
+function gh(method,path,body,repo){return fetch("https://api.github.com/repos/"+(repo||REPO)+"/contents/"+encPath(path)+(method==="GET"?"?t="+Date.now():""),{method:method,cache:"no-store",
   headers:Object.assign({"Accept":"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28"},TOKEN?{"Authorization":"Bearer "+TOKEN}:{} ,body?{"Content-Type":"application/json"}:{}),body:body?JSON.stringify(body):undefined})
   .then(function(r){return r.text().then(function(t){var j=null;try{j=JSON.parse(t);}catch(e){}return {status:r.status,ok:r.ok,j:j};});});}
 function ghErr(r){var c=r.status;return c===401?"토큰이 틀렸거나 만료됐어요":c===403?"토큰에 이 저장소 권한(Contents 읽기·쓰기)이 없어요":c===404?"저장소나 파일을 찾을 수 없어요":c===409?"다른 곳에서 동시에 바뀌었어요 · 다시 시도":c===0?"인터넷 연결을 확인하세요":(r.j&&r.j.message)||("오류 "+c);}
@@ -597,6 +629,7 @@ function connect(){REPO_MSG="불러오는 중…";renderRepo();
   return Promise.all([ghGetJson(CS_DIR+"index.json"),gh("GET","courses"),ghGetJson(CAT_PATH)]).then(function(res){
     var idx=res[0].missing?[]:(res[0].data.courses||[]);var files=res[1].ok&&Array.isArray(res[1].j)?res[1].j.filter(function(f){return /\.json$/i.test(f.name);}):[];
     LIST={cloud:idx,files:files};if(!res[2].missing)setCatalog(res[2].data,res[2].sha);
+    if(!RECS)loadRecs();
     REPO_MSG="연결됨 · 앱 코스 "+idx.length+"개 · 저장소 courses 폴더 "+files.length+"개"+(CAT?" · 산 목록 rev "+CAT.rev:"");renderRepo();renderCourse();})
   .catch(function(e){REPO_MSG="연결 실패: "+e.message;renderRepo();});}
 function setCatalog(c,sha){CAT=c;CAT_SHA=sha;CAT_DIRTY={};drawTgts();renderCourse();}
@@ -646,6 +679,45 @@ function renderRepo(){var p=$("p-repo");p.textContent="";
   p.appendChild(b2);
   p.appendChild(h("p",{cls:"msg",text:"courses 폴더 코스를 고쳐서 '앱에 올리기'하면 같은 id의 앱 코스가 바뀌고, 앱에 없던 코스면 새로 추가돼요."}));}
 
+// ============ 내 산행 기록 (앱이 올리는 기록 저장소) ============
+var RREPO=ls("ce.rrepo")||"hsmjis-cmyk/hikepace-records",RECS=null,RMSG="",ROV={},RCOL=["#7c3aed","#0891b2","#db2777","#65a30d","#ea580c","#0f766e","#4f46e5","#b45309"],rci=0;
+var gRec=L.layerGroup();
+function ghRaw(path,repo){return fetch("https://api.github.com/repos/"+repo+"/contents/"+encPath(path)+"?t="+Date.now(),{cache:"no-store",headers:Object.assign({"Accept":"application/vnd.github.raw+json","X-GitHub-Api-Version":"2022-11-28"},TOKEN?{"Authorization":"Bearer "+TOKEN}:{})})
+  .then(function(r){if(!r.ok)throw new Error(ghErr({status:r.status}));return r.text();});}
+function loadRecs(){if(!TOKEN){RMSG="저장소 탭에서 토큰을 먼저 넣으세요";renderRecs();return Promise.resolve();}RMSG="기록 목록 불러오는 중…";renderRecs();
+  return ghRaw("index.json",RREPO).then(function(t){var j=JSON.parse(t);RECS=(j.records||[]).filter(function(r){return r.json;}).sort(function(a,b){return String(b.date+b.start).localeCompare(String(a.date+a.start));});
+    RMSG="기록 "+RECS.length+"개";renderRecs();autoRecs();}).catch(function(e){RMSG="기록을 못 불러왔어요: "+e.message+" (기록 저장소 이름·토큰 권한 확인)";renderRecs();});}
+function autoRecs(){if(!RECS||!META)return;RECS.filter(function(r){return r.courseId===META.id;}).slice(0,2).forEach(function(r){if(!ROV[r.id])toggleRec(r,true);});}
+function toggleRec(r,quiet){
+  if(ROV[r.id]){if(ROV[r.id].layer)gRec.removeLayer(ROV[r.id].layer);delete ROV[r.id];renderRecs();return Promise.resolve();}
+  var o=ROV[r.id]={meta:r,color:RCOL[rci++%RCOL.length],loading:true};renderRecs();
+  return ghRaw(r.json,RREPO).then(function(t){var j=JSON.parse(t),pts=(j.gps&&j.gps.pts||[]).map(function(p){return [p[0],p[1],p[2]==null?null:p[2]];}).filter(function(p){return isFinite(p[0])&&isFinite(p[1]);});
+      if(!ROV[r.id])return;o.loading=false;o.pts=pts;if(pts.length<2){o.err="GPS 점이 없어요";renderRecs();return;}
+      o.layer=L.polyline(pts.map(function(p){return [p[0],p[1]];}),{color:o.color,weight:4,opacity:.65,interactive:true,bubblingMouseEvents:true}).bindTooltip(r.date+" "+r.name,{sticky:true});
+      gRec.addLayer(o.layer);if(!META&&!quiet)map.fitBounds(o.layer.getBounds().pad(0.1));renderRecs();})
+    .catch(function(e){o.loading=false;o.err=e.message;renderRecs();});}
+function renderRecs(){var p=$("p-recs");if(!p)return;p.textContent="";
+  var ri=h("input",{value:RREPO});ri.onchange=function(){RREPO=ri.value.trim();ls("ce.rrepo",RREPO);};
+  p.appendChild(h("label",{cls:"f"},["기록 저장소 (앱 설정 → 기록 보관(GitHub)의 저장소)",ri]));
+  p.appendChild(h("div",{cls:"row"},[h("button",{cls:"pri",text:RECS?"다시 불러오기":"기록 목록 불러오기",onclick:loadRecs}),Object.keys(ROV).length?h("button",{text:"겹친 기록 모두 끄기",onclick:function(){Object.keys(ROV).forEach(function(id){if(ROV[id].layer)gRec.removeLayer(ROV[id].layer);});ROV={};renderRecs();}}):null]));
+  if(RMSG)p.appendChild(h("p",{cls:/못/.test(RMSG)?"msg err":"msg",text:RMSG}));
+  p.appendChild(h("p",{cls:"msg",text:"기록을 누르면 실제로 걸은 GPS 경로를 지도에 겹쳐 보여줘요(색깔 선). 그 선을 보면서 구간의 점을 옮기거나 추가하면 돼요. '참고 경로로'를 누르면 GPX 탭 기능(구간을 이 기록대로 바꾸기)에 쓸 수 있어요."}));
+  if(!RECS)return;
+  var q=h("input",{type:"search",placeholder:"이름·날짜로 찾기",value:p.__q||""}),box=h("div",{cls:"list"});p.appendChild(q);
+  function row(r){var o=ROV[r.id];var it=h("button",{cls:"it"+(o?" on":""),onclick:function(){toggleRec(r);}},[h("span",{cls:"n",style:o?"background:"+o.color:"background:#c9cfc6",text:o?"✓":""}),
+      h("span",null,[h("b",{text:r.name||"기록"}),h("small",{text:r.date+" "+(r.start||"")+" · "+(r.km!=null?(+r.km).toFixed(1)+"km":"")+(o&&o.loading?" · 불러오는 중…":"")+(o&&o.err?" · "+o.err:"")})]),
+      h("span",{cls:"r",text:r.courseId&&META&&r.courseId===META.id?"이 코스":""})]);
+    box.appendChild(it);
+    if(o&&o.pts&&o.pts.length>1)box.appendChild(h("div",{cls:"row",style:"margin:0 0 6px 30px"},[h("button",{cls:"sm",text:"지도 맞추기",onclick:function(){map.fitBounds(o.layer.getBounds().pad(0.1));}}),
+      h("button",{cls:"sm",text:"참고 경로로 (GPX)",onclick:function(){GPX={name:r.date+" "+r.name,pts:o.pts,wpts:[]};drawGpx();toast("GPX 탭에서 이 기록으로 구간을 바꿀 수 있어요");renderGpx();}}),
+      !META?h("button",{cls:"sm",text:"이 기록으로 새 코스",onclick:function(){newFromGpx({name:r.name,pts:o.pts,wpts:[]});}}):null]));}
+  function paint(){box.textContent="";var t=q.value.trim();p.__q=t;var list=RECS.filter(function(r){return !t||(r.name+" "+r.date).indexOf(t)>=0;});
+    var mine=META?list.filter(function(r){return r.courseId===META.id;}):[];
+    if(mine.length){box.appendChild(h("h3",{text:"이 코스로 한 기록"}));mine.forEach(row);box.appendChild(h("h3",{text:"전체 기록"}));}
+    list.filter(function(r){return mine.indexOf(r)<0;}).slice(0,150).forEach(row);}
+  q.oninput=paint;paint();p.appendChild(box);}
+gRec.addTo(map);gRec.bringToBack&&0;
+
 // ============ 파일 ============
 function readFile(f,cb){var rd=new FileReader();rd.onload=function(){cb(String(rd.result),f.name);};rd.readAsText(f);}
 $("openB").onclick=function(){$("fileIn").click();};
@@ -656,8 +728,9 @@ $("saveB").onclick=function(){if(!META)return;var pr=problems();if(pr.e.length){
   lastSaved=new Date().toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"});setDirty(false);toast("파일로 저장했어요 · 휴대폰에서 '코스 가져오기'로 넣어도 돼요");};
 $("upB").onclick=upload;$("undoB").onclick=undo;$("redoB").onclick=redo;
 document.addEventListener("keydown",function(e){var tag=(e.target.tagName||"").toLowerCase(),typing=tag==="input"||tag==="textarea"||tag==="select";
-  if(e.key==="Escape"&&mode){endMode();return;}
+  if(e.key==="Escape"&&mode){endMode();return;}if(e.key==="Escape"&&PM!=="move"){setPM("move");return;}
   if(typing)return;
+  if(!e.ctrlKey&&!e.metaKey&&editSegs().length&&"1234".indexOf(e.key)>=0&&e.key){setPM(["move","add","del","range"][+e.key-1]);return;}
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="z"){e.preventDefault();if(e.shiftKey)redo();else undo();}
   else if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="y"){e.preventDefault();redo();}
   else if(e.key==="Backspace"&&mode&&mode.k==="draw"&&mode.steps.length){var n=mode.steps.pop();mode.pts.splice(mode.pts.length-n,n);paintDraw();}});
