@@ -470,15 +470,15 @@ function splitAt(i,ll){ // 구간 i 위의 점에 새 지점 추가
   var s=SEG[i],r=nearestOn(s,ll,1);if(!r)return;push();
   var g=lenM(s.slice(0,r.i).concat([[r.ll[0],r.ll[1]]])),G=lenM(s)||1,a=CP[i],b=CP[i+1],km=+(a.km+(b.km-a.km)*g/G).toFixed(2);
   var ta=hm(a.depart||a.arrive),tb=hm(b.arrive),ar=ta!=null&&tb!=null?fmt(ta+(tb-ta)*g/G):"";
-  var nc={name:"새 지점",km:km,arrive:ar,depart:"",note:"",peak:false,radiusKm:0.15,cutoff:"",cutoffBy:"arrive",cutoffAction:"",route:a.route,lat:r6(r.ll[0]),lon:r6(r.ll[1])};
+  var nc={name:"새 지점",km:km,arrive:ar,depart:"",note:"",peak:false,radiusKm:0.05,cutoff:"",cutoffBy:"arrive",cutoffAction:"",route:a.route,lat:r6(r.ll[0]),lon:r6(r.ll[1])};
   var s1=s.slice(0,r.i).concat([[r.ll[0],r.ll[1],null]]),s2=[[r.ll[0],r.ll[1],null]].concat(s.slice(r.i));
   CP.splice(i+1,0,nc);SEG.splice(i,1,s1,s2);HOW.splice(i,1,HOW[i]||"",HOW[i]||"");
   select("cp",i+1);toast("지점을 추가했어요 · 이름과 시각을 고치세요");}
 function delCp(i){if(i<=0||i>=CP.length-1){toast("출발·도착 지점은 지울 수 없어요");return;}push();
   var m=SEG[i-1].concat(SEG[i].slice(1));CP.splice(i,1);SEG.splice(i-1,2,m);HOW.splice(i-1,2,"편집");sel={t:"seg",i:i-1};drawAll();renderPanels();}
 function addCpEnd(ll,atStart){push();var p=[ll[0],ll[1],null];
-  if(atStart){var b=CP[0],q=cpLL(0);CP.forEach(function(c){c.km=+(+c.km+hav(p,q)/1000).toFixed(3);});CP.unshift({name:"새 출발",km:0,arrive:CP[0].arrive,depart:"",note:"",peak:false,radiusKm:0.15,cutoff:"",cutoffBy:"arrive",cutoffAction:"",route:"",lat:r6(ll[0]),lon:r6(ll[1])});SEG.unshift([p,[q[0],q[1],null]]);HOW.unshift("직선");}
-  else{var n=CP.length-1,q2=cpLL(n),last=CP[n];CP.push({name:"새 도착",km:+(+last.km+hav(q2,p)/1000).toFixed(2),arrive:last.depart||last.arrive,depart:"",note:"",peak:false,radiusKm:0.15,cutoff:"",cutoffBy:"arrive",cutoffAction:"",route:"",lat:r6(ll[0]),lon:r6(ll[1])});SEG.push([[q2[0],q2[1],null],p]);HOW.push("직선");}
+  if(atStart){var b=CP[0],q=cpLL(0);CP.forEach(function(c){c.km=+(+c.km+hav(p,q)/1000).toFixed(3);});CP.unshift({name:"새 출발",km:0,arrive:CP[0].arrive,depart:"",note:"",peak:false,radiusKm:0.05,cutoff:"",cutoffBy:"arrive",cutoffAction:"",route:"",lat:r6(ll[0]),lon:r6(ll[1])});SEG.unshift([p,[q[0],q[1],null]]);HOW.unshift("직선");}
+  else{var n=CP.length-1,q2=cpLL(n),last=CP[n];CP.push({name:"새 도착",km:+(+last.km+hav(q2,p)/1000).toFixed(2),arrive:last.depart||last.arrive,depart:"",note:"",peak:false,radiusKm:0.05,cutoff:"",cutoffBy:"arrive",cutoffAction:"",route:"",lat:r6(ll[0]),lon:r6(ll[1])});SEG.push([[q2[0],q2[1],null],p]);HOW.push("직선");}
   select("cp",atStart?0:CP.length-1);}
 function setModebar(html,btns){var mb=$("modebar");mb.innerHTML="";if(!html){mb.style.display="none";return;}mb.style.display="flex";mb.appendChild(h("span",{html:html}));(btns||[]).forEach(function(b){mb.appendChild(b);});}
 function endMode(){mode=null;gDraw.clearLayers();setModebar(null);map.getContainer().style.cursor="";drawAll();renderPanels();}
