@@ -680,6 +680,7 @@ function upload(){
   META.updatedAt=Date.now();var body=toPublic(),path=CS_DIR+String(META.id).replace(/[^\w.-]+/g,"_")+".json";$("upB").disabled=true;$("upB").textContent="올리는 중…";
   function step(retry){return gh("GET",path).then(function(r){var sha=r.ok&&r.j?r.j.sha:null;return ghPutJson(path,body,"코스 편집기: "+META.name,sha);})
     .then(function(){return ghGetJson(CS_DIR+"index.json");}).then(function(ix){var data=ix.missing?{format:"hikepace-cloud-courses",version:1,courses:[]}:ix.data;
+      if(Array.isArray(data.deleted))data.deleted=data.deleted.filter(function(x){return x&&x.id!==META.id;});
       data.courses=(data.courses||[]).filter(function(e){return e.id!==META.id;}).concat([{id:META.id,name:META.name,updatedAt:META.updatedAt,path:path,km:CP[CP.length-1].km,by:"pc"}])
         .sort(function(a,b){return String(a.name).localeCompare(String(b.name),"ko");});data.updated=Date.now();
       return ghPutJson(CS_DIR+"index.json",data,"코스 편집기: 코스 목록",ix.sha).then(function(){LIST=LIST||{cloud:[],files:[]};LIST.cloud=data.courses;});})
@@ -687,6 +688,18 @@ function upload(){
   step(false).then(function(){dirty=false;lastSaved=new Date().toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"});setDirty(false);renderRepo();
     toast("올렸어요 · 앱을 열거나 설정 → 'PC 코스 편집기 동기화 → 지금 동기화'를 누르면 반영돼요",7000);})
   .catch(function(e){toast("올리기 실패: "+e.message,7000);}).then(function(){$("upB").disabled=false;$("upB").textContent="앱에 올리기";});}
+// 앱 코스 삭제: 파일을 지우고 목록(index.json)의 deleted 에 남겨서 앱(v6.4+)도 지우게 한다
+function delCloud(e){if(!TOKEN){toast("저장소 탭에서 토큰을 먼저 넣으세요");return;}
+  if(!confirm("'"+e.name+"' 코스를 앱 코스에서 삭제할까요?\n앱도 다음 동기화 때 이 코스를 지워요. 되돌릴 수 없어요."))return;
+  var path=e.path||CS_DIR+e.id+".json";
+  function step(retry){return ghGetJson(CS_DIR+"index.json").then(function(ix){var data=ix.missing?{format:"hikepace-cloud-courses",version:1,courses:[]}:ix.data;
+      data.courses=(data.courses||[]).filter(function(x){return x.id!==e.id;});
+      data.deleted=(Array.isArray(data.deleted)?data.deleted:[]).filter(function(x){return x&&x.id!==e.id;}).concat([{id:e.id,at:Date.now()}]).slice(-200);data.updated=Date.now();
+      return ghPutJson(CS_DIR+"index.json",data,"코스 편집기: 코스 삭제 "+e.name,ix.sha).then(function(){LIST.cloud=data.courses;});})
+    .catch(function(er){if(er.status===409&&!retry)return step(true);throw er;});}
+  step(false).then(function(){return gh("GET",path).then(function(r){if(r.ok&&r.j&&r.j.sha)return gh("DELETE",path,{message:"코스 편집기: 코스 삭제 "+e.name,sha:r.j.sha});});})
+    .then(function(){renderRepo();toast("'"+e.name+"' 삭제했어요 · 앱은 다음 동기화 때 지워요",6000);})
+    .catch(function(er){toast("삭제 실패: "+er.message,7000);});}
 function uploadCatalog(){if(!CAT)return;if(!TOKEN||!CAT_SHA){toast("저장소에서 받은 산 목록만 올릴 수 있어요 (저장소 탭에서 연결)",6000);return;}
   var n=Object.keys(CAT_DIRTY).length;
   // 산 목록은 파일 하나(catalog/catalog.json)에 바로 덮어써요. 버전(rev)은 올리지 않고, 처음 위치는 target.orig에 남겨 둬요.
@@ -711,8 +724,8 @@ function renderRepo(){var p=$("p-repo");p.textContent="";
     h("li",{text:"Permissions → Contents: Read and write"}),h("li",{text:"만든 github_pat_… 를 위 칸에 붙여넣기 (앱에 넣은 토큰을 써도 돼요)"})])]));
   if(!LIST)return;
   var emptyMsg=LIST.cloud.length?null:h("p",{cls:"msg",text:"아직 없어요. 새 앱(v5.9)을 열면 앱의 코스가 여기로 올라와요."});
-  var b1=h("div",{cls:"list"});LIST.cloud.forEach(function(e){var on=META&&META.id===e.id;b1.appendChild(h("button",{cls:"it"+(on?" on":""),onclick:function(){openCloud(e.path||CS_DIR+e.id+".json",e.name);}},
-    [h("span",{cls:"n",text:e.by==="pc"?"P":"A"}),h("span",null,[h("b",{text:e.name}),h("small",{text:(e.km!=null?(+e.km).toFixed(1)+"km · ":"")+(e.updatedAt?new Date(e.updatedAt).toLocaleString("ko-KR"):"")+(e.by==="pc"?" · PC에서 고침":" · 앱에서 올림")})]),h("span",{cls:"r",text:"열기 ›"})]));});
+  var b1=h("div",{cls:"list"});LIST.cloud.forEach(function(e){var on=META&&META.id===e.id;b1.appendChild(h("div",{style:"display:flex;gap:4px;align-items:stretch"},[h("button",{cls:"it"+(on?" on":""),style:"flex:1;min-width:0",onclick:function(){openCloud(e.path||CS_DIR+e.id+".json",e.name);}},
+    [h("span",{cls:"n",text:e.by==="pc"?"P":"A"}),h("span",null,[h("b",{text:e.name}),h("small",{text:(e.km!=null?(+e.km).toFixed(1)+"km · ":"")+(e.updatedAt?new Date(e.updatedAt).toLocaleString("ko-KR"):"")+(e.by==="pc"?" · PC에서 고침":" · 앱에서 올림")})]),h("span",{cls:"r",text:"열기 ›"})]),h("button",{cls:"danger",title:"앱 코스에서 삭제 (앱에서도 지워져요)",style:"padding:4px 8px;font-size:12px",text:"삭제",onclick:function(){delCloud(e);}})]));});
   // 앱 코스: 기본은 펼침 (접어 두면 이 PC에 기억)
   var det1=h("details",{cls:"fold"},[h("summary",{text:"앱 코스 (cloud/courses) · "+LIST.cloud.length}),emptyMsg,b1]);
   det1.open=ls("ce.foldCloud")!=="closed";det1.addEventListener("toggle",function(){ls("ce.foldCloud",det1.open?"":"closed");});
