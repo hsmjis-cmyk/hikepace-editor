@@ -51,7 +51,8 @@ h3{font-size:13px;margin:14px 0 6px;color:var(--muted)}
 .stat div{background:var(--field);border-radius:8px;padding:6px;text-align:center}
 .stat b{display:block;font-size:15px}.stat small{color:var(--muted);font-size:11px}
 #map{height:100vh;position:relative;z-index:1}
-#nmap{position:absolute;inset:0;z-index:0;display:none;pointer-events:none}
+#nbox{position:absolute;inset:0;z-index:0;display:none;pointer-events:none}
+#nmap{width:100%;height:100%}
 .nv #map.leaflet-container{background:transparent}
 #modebar{position:absolute;left:50%;top:10px;transform:translateX(-50%);z-index:1000;background:#18201b;color:#fff;border-radius:10px;padding:8px 12px;display:none;gap:8px;align-items:center;box-shadow:0 2px 10px rgba(0,0,0,.3);font-size:13px}
 #modebar button{padding:4px 10px;font-size:12px}
@@ -96,7 +97,7 @@ kbd{font-size:11px;border:1px solid var(--line);border-bottom-width:2px;border-r
     <section class="panel" id="p-gpx"></section>
     <section class="panel" id="p-repo"></section>
   </aside>
-  <div id="mapWrap" style="position:relative;min-width:0"><div id="nmap"></div><div id="map"></div><div id="modebar"></div></div>
+  <div id="mapWrap" style="position:relative;min-width:0"><div id="nbox"><div id="nmap"></div></div><div id="map"></div><div id="modebar"></div></div>
 </div>
 <div id="toast"></div>
 <div class="drop" id="drop">코스(.json)나 GPX(.gpx) 파일을 놓으세요</div>
@@ -324,7 +325,7 @@ var curLayer=null,startLayer=ls("ce.layer")||"지형 (OpenTopoMap)";
 var NAVER_TYPES={"네이버 일반":"NORMAL","네이버 위성":"HYBRID","네이버 지형":"TERRAIN"},nmap=null,naverOn=false,naverJs=null;
 Object.keys(NAVER_TYPES).forEach(function(k){LAYERS[k]=null;});
 var naverTried={};
-function naverReset(){nmap=null;naverJs=null;try{delete window.naver;}catch(e){window.naver=undefined;}var el=$("nmap");el.innerHTML="";el.removeAttribute("style");el.style.display="none";
+function naverReset(){nmap=null;naverJs=null;try{delete window.naver;}catch(e){window.naver=undefined;}var el=$("nmap");el.innerHTML="";el.removeAttribute("style");$("nbox").style.display="none";
   [].slice.call(document.scripts).forEach(function(sc){if(/oapi\.map\.naver\.com/.test(sc.src))sc.remove();});}
 function naverAuthFail(param){
   // 새 키(ncpKeyId)로 실패하면 옛 방식(ncpClientId)으로 한 번 더, 그래도 실패하면 안내하고 다른 지도로
@@ -347,12 +348,12 @@ map.on("resize",function(){if(nmap){var el=$("nmap");nmap.setSize(new naver.maps
 function setLayer(name){
   if(curLayer&&LAYERS[curLayer])map.removeLayer(LAYERS[curLayer]);
   var nt=NAVER_TYPES[name];
-  if(!nt){naverOn=false;$("mapWrap").classList.remove("nv");$("nmap").style.display="none";curLayer=name;LAYERS[name].addTo(map);map.setMaxZoom(20);ls("ce.layer",name);$("layerSel").value=name;return;}
+  if(!nt){naverOn=false;$("mapWrap").classList.remove("nv");$("nbox").style.display="none";curLayer=name;LAYERS[name].addTo(map);map.setMaxZoom(20);ls("ce.layer",name);$("layerSel").value=name;return;}
   var key=ls("ce.naverKey")||"";
   if(!key){key=(prompt("네이버 지도 Client ID를 넣어 주세요 (앱 설정 → 지도에 넣은 것과 같은 값)")||"").trim();if(!key){setLayer("지형 (OpenTopoMap)");return;}ls("ce.naverKey",key);}
   if(location.protocol==="file:")toast("파일로 연 편집기는 네이버가 막아요. 등록한 웹 주소(GitHub 페이지)로 열어 주세요",7000);
   curLayer=name;ls("ce.layer",name);$("layerSel").value=name;
-  loadNaverJs(key).then(function(){naverOn=true;$("mapWrap").classList.add("nv");$("nmap").style.display="block";map.setMaxZoom(21);
+  loadNaverJs(key).then(function(){naverOn=true;$("mapWrap").classList.add("nv");$("nbox").style.display="block";map.setMaxZoom(21);
     if(!nmap)nmap=new naver.maps.Map("nmap",{center:new naver.maps.LatLng(map.getCenter().lat,map.getCenter().lng),zoom:Math.round(map.getZoom()),minZoom:0,maxZoom:21,
       draggable:false,pinchZoom:false,scrollWheel:false,keyboardShortcuts:false,disableDoubleClickZoom:true,disableDoubleTapZoom:true,disableTwoFingerTapZoom:true,
       zoomControl:false,mapTypeControl:false,scaleControl:false,mapDataControl:false,logoControl:true});
