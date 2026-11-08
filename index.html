@@ -70,6 +70,8 @@ h3{font-size:13px;margin:14px 0 6px;color:var(--muted)}
 .vg{width:9px;height:9px;margin:-4.5px 0 0 -4.5px;background:rgba(232,89,12,.35);border:1px solid var(--sel);border-radius:50%;box-sizing:border-box}
 .rh{width:14px;height:14px;margin:-7px 0 0 -7px;background:#d32f2f;border:2px solid #fff;border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,.4);cursor:ew-resize}
 .tg{position:relative;width:0;height:0}
+.tg i{cursor:move;}
+.tg.on i{box-shadow:0 0 0 4px rgba(211,47,47,.35)}
 .tg i{position:absolute;left:-6px;top:-6px;width:12px;height:12px;background:#d32f2f;transform:rotate(45deg);border:2px solid #fff;box-sizing:border-box}
 .tg b{position:absolute;left:10px;top:-22px;color:#b71c1c;font-size:11px;font-weight:800;white-space:nowrap;text-shadow:0 0 3px #fff,0 0 3px #fff}
 .hp table{width:100%;border-collapse:collapse;font-size:12px;margin:4px 0 10px}.hp th{background:var(--accent);color:#fff;text-align:left;padding:5px 6px;font-weight:700;white-space:nowrap}
@@ -447,14 +449,20 @@ function paintPtbar(list){var bar=$("ptbar");if(!list.length){bar.style.display=
   bar.appendChild(h("button",{text:"?",title:"점 편집 도움말",onclick:showHelp}));
   if(list.some(function(i){return SEG[i].length>1500;}))bar.appendChild(h("span",{cls:"t bad",text:"점이 너무 많아요 · 먼저 '점 줄이기'"}));}
 // 프로그램 인증 지점 (산 목록)
+var TGT_ORIG={};function tgtOrig(id){if(!TGT_ORIG[id]){var t=CAT.targets[id];TGT_ORIG[id]={lat:t.lat,lon:t.lon,approx:t.approx};}}
 function tgtCertM(t){return +t.certM>0?+t.certM:(t.approx?300:200);}
 function catTargets(){if(!CAT)return [];var inP={};(CAT.programs||[]).forEach(function(p){(p.targets||[]).forEach(function(t){(inP[t]=inP[t]||[]).push(p.n||p.id);});});
-  var b=courseBox(0.02);if(!b)return [];var all=[];SEG.forEach(function(s){s.forEach(function(p){all.push(p);});});
+  var b=courseBox(0.02),all=[];SEG.forEach(function(s){s.forEach(function(p){all.push(p);});});
+  if(!b||!all.length){if(map.getZoom()<10)return [];var vb=map.getBounds();b=[vb.getSouth(),vb.getWest(),vb.getNorth(),vb.getEast()];all=[];}
   return Object.keys(CAT.targets).filter(function(id){var t=CAT.targets[id];if(!inP[id]||t.lat==null)return false;if(!inBox(b,[t.lat,t.lon]))return false;
-    for(var k=0;k<all.length;k+=3){if(hav(all[k],[t.lat,t.lon])<1500)return true;}return !all.length;}).map(function(id){return {id:id,t:CAT.targets[id],progs:inP[id]};});}
+    if(id===sel.i&&sel.t==="tgt")return true;for(var k=0;k<all.length;k+=3){if(hav(all[k],[t.lat,t.lon])<1500)return true;}return !all.length;}).slice(0,300).map(function(id){return {id:id,t:CAT.targets[id],progs:inP[id]};});}
 function drawTgts(){gTgt.clearLayers();if(!SHOW.tgt)return;catTargets().forEach(function(x){var t=x.t,r=tgtCertM(t),on=sel.t==="tgt"&&sel.i===x.id,p=[t.lat,t.lon];
   L.circle(p,{radius:r,color:"#b71c1c",weight:on?3:2,dashArray:"7 5",fillColor:"#e53935",fillOpacity:on?.28:.16}).on("click",function(ev){if(mode)return onMapClick(ev);L.DomEvent.stopPropagation(ev);select("tgt",x.id);}).addTo(gTgt);
-  L.marker(p,{icon:L.divIcon({className:"",iconSize:[0,0],html:'<div class="tg"><i></i><b>'+esc(t.n+(t.sub?" "+t.sub:""))+" · 인증 "+r+"m"+(CAT_DIRTY[x.id]?" ●":"")+'</b></div>'}),interactive:false}).addTo(gTgt);
+  var tm=L.marker(p,{icon:L.divIcon({className:"",iconSize:[0,0],html:'<div class="tg'+(on?" on":"")+'"><i></i><b>'+esc(t.n+(t.sub?" "+t.sub:""))+" · 인증 "+r+"m"+(CAT_DIRTY[x.id]?" ●":"")+'</b></div>'}),draggable:true,zIndexOffset:on?1800:400,title:"끌어서 인증 위치 옮기기"}).addTo(gTgt);
+  tm.on("click",function(ev){if(mode)return onMapClick(ev);select("tgt",x.id);});
+  tm.on("dragstart",function(){tgtOrig(x.id);});
+  tm.on("drag",function(ev){var ll=ev.target.getLatLng();t.lat=r6(ll.lat);t.lon=r6(ll.lng);CAT_DIRTY[x.id]=1;});
+  tm.on("dragend",function(){sel={t:"tgt",i:x.id};drawTgts();renderPanels();showTab("course");toast("인증 위치를 옮겼어요 · '인증 지점 올리기'로 산 목록에 반영");});
   if(on){var hp=L.marker(offsetE(p,r),{icon:L.divIcon({className:"",iconSize:[0,0],html:'<div class="rh" title="끌어서 인증 반경 조절"></div>'}),draggable:true,zIndexOffset:2000}).addTo(gTgt);
     hp.on("drag",function(ev){var ll=ev.target.getLatLng(),d=Math.max(30,Math.min(1500,Math.round(hav(p,[ll.lat,ll.lng])/10)*10));t.certM=d;CAT_DIRTY[x.id]=1;var ri=$("tgR");if(ri)ri.value=d;});
     hp.on("dragend",function(){drawTgts();renderPanels();});}});}
@@ -463,6 +471,7 @@ function fitAll(){var b=courseBox(0.002);if(b)map.fitBounds([[b[0],b[1]],[b[2],b
 function select(t,i){sel={t:t,i:i};drawAll();renderPanels();
   if(t==="cp")showTab("cps");else if(t==="seg")showTab("segs");else if(t==="tgt")showTab("course");
   setTimeout(function(){var e=document.querySelector(".it.on");if(e)e.scrollIntoView({block:"nearest"});},30);}
+map.on("moveend",function(){if(CAT&&!SEG.length){drawTgts();if($("p-course").classList.contains("on"))renderCourse();}});
 map.on("click",function(ev){if(mode)return onMapClick(ev);if(PM==="add"&&editSegs().length){insertPoint([ev.latlng.lat,ev.latlng.lng]);return;}if(sel.t){sel={t:null,i:-1};drawAll();renderPanels();}});
 
 // ============ 편집 동작 ============
@@ -561,17 +570,28 @@ function legend(p){p.appendChild(h("h3",{text:"지도 표시"}));
   p.appendChild(h("p",{cls:"msg",html:"<kbd>Ctrl</kbd>+<kbd>Z</kbd> 되돌리기 · <kbd>Esc</kbd> 그리기 취소 · 경로 오른쪽 클릭 = 그 자리에 지점 추가 · 꼭짓점 오른쪽 클릭/더블클릭 = 지우기"}));}
 function tgtPanel(p){
   if(!CAT){p.appendChild(h("p",{cls:"msg",text:"저장소를 연결하면 이 코스 근처의 프로그램 인증 지점(100대 명산 등)과 인증 반경이 빨간 점선 원으로 보여요."}));return;}
-  var list=catTargets();p.appendChild(h("h3",{text:"근처 인증 지점 ("+list.length+")"}));
-  if(!list.length){p.appendChild(h("p",{cls:"msg",text:"이 코스 1.5km 안에 프로그램 인증 지점이 없어요."}));}
+  var list=catTargets();p.appendChild(h("h3",{text:(META?"근처 인증 지점 (":"지도 화면 안 인증 지점 (")+list.length+")"}));
+  var q=h("input",{type:"search",placeholder:"산·인증 지점 이름으로 찾기 (예: 서래봉, 가리왕산)"});
+  q.addEventListener("keydown",function(e){if(e.key!=="Enter")return;var v=q.value.trim();if(!v)return;var hit=Object.keys(CAT.targets).filter(function(id){var t=CAT.targets[id];return t.lat!=null&&(t.n+" "+(t.sub||"")).indexOf(v)>=0;});
+    if(!hit.length){toast("'"+v+"' 인증 지점이 없어요");return;}var t=CAT.targets[hit[0]];sel={t:"tgt",i:hit[0]};map.setView([t.lat,t.lon],16);setTimeout(function(){drawTgts();renderPanels();},50);if(hit.length>1)toast(hit.length+"곳 중 첫 번째로 이동 · 이름을 더 자세히 쓰면 좁혀져요");});
+  p.appendChild(q);
+  if(!list.length){p.appendChild(h("p",{cls:"msg",text:META?"이 코스 1.5km 안에 프로그램 인증 지점이 없어요. 위에서 이름으로 찾을 수 있어요.":"지도를 확대(10 이상)하거나 이름으로 찾으세요."}));}
   var box=h("div",{cls:"list"});list.forEach(function(x){var on=sel.t==="tgt"&&sel.i===x.id,t=x.t;
     box.appendChild(h("button",{cls:"it"+(on?" on":""),onclick:function(){select("tgt",x.id);map.setView([t.lat,t.lon],Math.max(map.getZoom(),15));}},[h("span",{cls:"n pk",text:"◆"}),
       h("span",null,[h("b",{text:t.n+(t.sub?" · "+t.sub:"")}),h("small",{text:x.progs.join(", ")})]),h("span",{cls:"r",html:tgtCertM(t)+"m"+(CAT_DIRTY[x.id]?" <b class='bad'>●</b>":"")})]));
     if(on){var ri=h("input",{id:"tgR",type:"number",min:"30",max:"1500",step:"10",value:tgtCertM(t)});ri.onchange=function(){var v=Math.max(30,Math.min(1500,+ri.value||200));t.certM=v;CAT_DIRTY[x.id]=1;drawTgts();renderPanels();};
+      var la=h("input",{type:"number",step:"0.000001",value:t.lat}),lo=h("input",{type:"number",step:"0.000001",value:t.lon});
+      function setLL(){var a=+la.value,b=+lo.value;if(!(a>33&&a<39&&b>124&&b<132)){toast("한국 범위 좌표가 아니에요");return;}tgtOrig(x.id);t.lat=r6(a);t.lon=r6(b);CAT_DIRTY[x.id]=1;drawTgts();renderPanels();}
+      la.onchange=setLL;lo.onchange=setLL;
+      var o=TGT_ORIG[x.id],moved=o&&(o.lat!==t.lat||o.lon!==t.lon);
       box.appendChild(h("div",{cls:"box"},[h("label",{cls:"f"},["인증 반경 (m) · 이 안을 지나간 기록이 있으면 앱이 자동 인증",ri]),
-        h("p",{cls:"msg",text:"지도에서 빨간 손잡이를 끌어도 돼요. 기본 "+(t.approx?"300m (좌표가 추정값)":"200m")+". 바꾼 반경은 '인증 반경 올리기'로 산 목록에 반영돼요."}),
-        h("div",{cls:"row"},[h("button",{text:"기본값으로",onclick:function(){delete t.certM;CAT_DIRTY[x.id]=1;drawTgts();renderPanels();}})])]));}});
+        h("div",{cls:"g2"},[h("label",{cls:"f"},["위도",la]),h("label",{cls:"f"},["경도",lo])]),
+        h("p",{cls:"msg",text:"◆ 표시를 끌면 인증 위치가 옮겨지고, 빨간 손잡이를 끌면 반경이 바뀌어요."+(moved?" 원래 위치에서 "+Math.round(hav([o.lat,o.lon],[t.lat,t.lon]))+"m 옮겼어요.":"")+(t.approx&&!moved?" (지금 좌표는 추정값)":"")}),
+        h("div",{cls:"row"},[h("button",{text:"이 산으로 이동",onclick:function(){map.setView([t.lat,t.lon],Math.max(map.getZoom(),16));}}),
+          moved?h("button",{text:"원래 위치로",onclick:function(){t.lat=o.lat;t.lon=o.lon;t.approx=o.approx;drawTgts();renderPanels();}}):null,
+          h("button",{text:"반경 기본값(50m)",onclick:function(){t.certM=50;CAT_DIRTY[x.id]=1;drawTgts();renderPanels();}})])]));}});
   p.appendChild(box);
-  var nd=Object.keys(CAT_DIRTY).length;if(nd)p.appendChild(h("div",{cls:"row",style:"margin-top:8px"},[h("button",{cls:"pri",text:"인증 반경 올리기 ("+nd+"곳)",onclick:uploadCatalog}),h("span",{cls:"msg",text:"산 목록 rev가 1 올라가요"})]));}
+  var nd=Object.keys(CAT_DIRTY).length;if(nd)p.appendChild(h("div",{cls:"row",style:"margin-top:8px"},[h("button",{cls:"pri",text:"인증 지점 올리기 ("+nd+"곳)",onclick:uploadCatalog}),h("span",{cls:"msg",text:"산 목록 rev가 1 올라가요"})]));}
 function renderCps(){var p=$("p-cps");p.textContent="";if(!META){p.appendChild(h("p",{cls:"msg",text:"코스를 먼저 여세요."}));return;}
   p.appendChild(h("div",{cls:"row"},[h("button",{cls:mode&&mode.k==="addcp"?"on":"",text:"＋ 지도에서 지점 추가",onclick:startAddCp})]));
   p.appendChild(h("p",{cls:"msg",text:"지점 표시를 끌어서 옮겨요. 선택한 지점의 빨간 손잡이를 끌면 도착 인정 반경이 바뀌어요. 봉우리(정상)로 표시한 지점은 반경이 빨간 원으로 보여요."}));
@@ -654,10 +674,11 @@ function upload(){
     toast("올렸어요 · 앱을 열거나 설정 → 'PC 코스 편집기 동기화 → 지금 동기화'를 누르면 반영돼요",7000);})
   .catch(function(e){toast("올리기 실패: "+e.message,7000);}).then(function(){$("upB").disabled=false;$("upB").textContent="앱에 올리기";});}
 function uploadCatalog(){if(!CAT)return;if(!TOKEN||!CAT_SHA){toast("저장소에서 받은 산 목록만 올릴 수 있어요 (저장소 탭에서 연결)",6000);return;}
-  var n=Object.keys(CAT_DIRTY).length;if(!confirm("인증 반경 "+n+"곳을 산 목록에 올릴까요? (rev "+CAT.rev+" → "+(+CAT.rev+1)+")"))return;
-  ghGetJson(CAT_PATH).then(function(r){var c=r.data;Object.keys(CAT_DIRTY).forEach(function(id){var t=c.targets[id];if(!t)return;var m=CAT.targets[id].certM;if(+m>0)t.certM=+m;else delete t.certM;});
+  var n=Object.keys(CAT_DIRTY).length;if(!confirm("인증 지점 "+n+"곳(위치·반경)을 산 목록에 올릴까요? (rev "+CAT.rev+" → "+(+CAT.rev+1)+")"))return;
+  ghGetJson(CAT_PATH).then(function(r){var c=r.data;Object.keys(CAT_DIRTY).forEach(function(id){var t=c.targets[id];if(!t)return;var src=CAT.targets[id],m=src.certM;if(+m>0)t.certM=+m;else delete t.certM;
+      if(src.lat!=null&&(src.lat!==t.lat||src.lon!==t.lon)){t.lat=src.lat;t.lon=src.lon;t.approx=false;}});TGT_ORIG={};
     c.rev=Math.max(+c.rev||0,+CAT.rev||0)+1;var d=new Date();c.updated=d.getFullYear()+"-"+("0"+(d.getMonth()+1)).slice(-2)+"-"+("0"+d.getDate()).slice(-2);
-    return ghPutJson(CAT_PATH,c,"코스 편집기: 인증 반경 "+n+"곳",r.sha).then(function(sha){setCatalog(c,sha);});})
+    return ghPutJson(CAT_PATH,c,"코스 편집기: 인증 지점 "+n+"곳 (위치·반경)",r.sha).then(function(sha){setCatalog(c,sha);});})
   .then(function(){toast("산 목록을 올렸어요 (rev "+CAT.rev+") · 앱 설정 → 산 목록 업데이트 → 지금 확인",7000);renderPanels();}).catch(function(e){toast("실패: "+e.message,6000);});}
 function renderRepo(){var p=$("p-repo");p.textContent="";
   var ri=h("input",{value:REPO,placeholder:"아이디/저장소"}),ti=h("input",{type:"password",value:TOKEN,placeholder:"github_pat_…"});
@@ -742,7 +763,8 @@ var HELP=[
  {t:"그 밖의 지도 동작",h:["동작","방법"],rows:[
   ["지점 옮기기","지점 표시를 끌기 (앞뒤 경로 끝도 같이 따라와요)"],
   ["도착 인정 반경","지점을 고른 뒤 원 가장자리의 빨간 손잡이를 끌기, 또는 지점 탭에서 숫자 입력 (봉우리 지점은 빨간 원)"],
-  ["인증 반경 (100대 명산 등)","빨간 점선 원을 누르고 손잡이를 끌기 → 코스 탭의 '인증 반경 올리기'"],
+  ["인증 지점 위치 (100대 명산 등)","빨간 ◆ 표시를 끌어 옮기거나 코스 탭에서 위도·경도 입력. 코스를 안 열었으면 코스 탭에서 이름으로 찾기 → '인증 지점 올리기'"],
+  ["인증 반경 (100대 명산 등)","빨간 점선 원을 누르고 손잡이를 끌기 → 코스 탭의 '인증 지점 올리기'"],
   ["지점 추가","경로 위에서 오른쪽 클릭, 또는 지점 탭의 '지도에서 지점 추가'"],
   ["구간 다시 그리기","구간 탭 → 다시 그리기 → 지도를 차례로 클릭 ('등산로 따라'를 켜면 등산로를 따라 이어요)"],
   ["등산로에 맞추기","코스 탭(전체) 또는 구간 탭(한 구간). '고정' 구간(도로 등)은 그대로 둬요"],
