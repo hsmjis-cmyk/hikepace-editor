@@ -707,11 +707,13 @@ function renderRepo(){var p=$("p-repo");p.textContent="";
     h("li",{text:"Repository access: Only select repositories → "+REPO.split("/")[1]}),
     h("li",{text:"Permissions → Contents: Read and write"}),h("li",{text:"만든 github_pat_… 를 위 칸에 붙여넣기 (앱에 넣은 토큰을 써도 돼요)"})])]));
   if(!LIST)return;
-  p.appendChild(h("h3",{text:"앱 코스 (cloud/courses) · "+LIST.cloud.length}));
-  if(!LIST.cloud.length)p.appendChild(h("p",{cls:"msg",text:"아직 없어요. 새 앱(v5.9)을 열면 앱의 코스가 여기로 올라와요."}));
+  var emptyMsg=LIST.cloud.length?null:h("p",{cls:"msg",text:"아직 없어요. 새 앱(v5.9)을 열면 앱의 코스가 여기로 올라와요."});
   var b1=h("div",{cls:"list"});LIST.cloud.forEach(function(e){var on=META&&META.id===e.id;b1.appendChild(h("button",{cls:"it"+(on?" on":""),onclick:function(){openCloud(e.path||CS_DIR+e.id+".json",e.name);}},
     [h("span",{cls:"n",text:e.by==="pc"?"P":"A"}),h("span",null,[h("b",{text:e.name}),h("small",{text:(e.km!=null?(+e.km).toFixed(1)+"km · ":"")+(e.updatedAt?new Date(e.updatedAt).toLocaleString("ko-KR"):"")+(e.by==="pc"?" · PC에서 고침":" · 앱에서 올림")})]),h("span",{cls:"r",text:"열기 ›"})]));});
-  p.appendChild(b1);
+  // 앱 코스: 기본은 펼침 (접어 두면 이 PC에 기억)
+  var det1=h("details",{cls:"fold"},[h("summary",{text:"앱 코스 (cloud/courses) · "+LIST.cloud.length}),emptyMsg,b1]);
+  det1.open=ls("ce.foldCloud")!=="closed";det1.addEventListener("toggle",function(){ls("ce.foldCloud",det1.open?"":"closed");});
+  p.appendChild(det1);
   // Claude가 만든 코스: 자주 안 보니 기본은 접어 둠 (펼침 상태는 이 PC에 기억)
   var b2=h("div",{cls:"list"});LIST.files.forEach(function(f){b2.appendChild(h("button",{cls:"it",onclick:function(){openCloud(f.path,f.name);}},[h("span",{cls:"n",text:"C"}),h("span",null,[h("b",{text:f.name.replace(/\.json$/i,"")}),h("small",{text:Math.round(f.size/1024)+"KB"})]),h("span",{cls:"r",text:"열기 ›"})]));});
   var det=h("details",{cls:"fold"},[h("summary",{text:"Claude가 만든 코스 (courses 폴더) · "+LIST.files.length}),b2]);
