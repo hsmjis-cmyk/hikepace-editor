@@ -70,7 +70,7 @@ h3{font-size:13px;margin:14px 0 6px;color:var(--muted)}
 .vg{width:9px;height:9px;margin:-4.5px 0 0 -4.5px;background:rgba(232,89,12,.35);border:1px solid var(--sel);border-radius:50%;box-sizing:border-box}
 .rh{width:14px;height:14px;margin:-7px 0 0 -7px;background:#d32f2f;border:2px solid #fff;border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,.4);cursor:ew-resize}
 .tg{position:relative;width:0;height:0}
-.tg i{cursor:move;}
+.tg i{cursor:pointer;}.tg.ed i{cursor:move;box-shadow:0 0 0 4px rgba(255,193,7,.8)}
 .tg.on i{box-shadow:0 0 0 4px rgba(211,47,47,.35)}
 .tg i{position:absolute;left:-6px;top:-6px;width:12px;height:12px;background:#d32f2f;transform:rotate(45deg);border:2px solid #fff;box-sizing:border-box}
 .tg b{position:absolute;left:10px;top:-22px;color:#b71c1c;font-size:11px;font-weight:800;white-space:nowrap;text-shadow:0 0 3px #fff,0 0 3px #fff}
@@ -444,7 +444,7 @@ function insertPoint(ll){var list=editSegs(),best=null;
   list.forEach(function(i){var s=SEG[i];for(var k=1;k<s.length;k++){var c=hav(s[k-1],ll)+hav(ll,s[k])-hav(s[k-1],s[k]);if(!best||c<best.c)best={i:i,k:k,c:c};}});
   if(!best)return false;push();SEG[best.i].splice(best.k,0,[ll[0],ll[1],null]);editDone(best.i);return true;}
 function setPM(m){PM=m;PRANGE=null;ls("ce.pm",m);map.getContainer().style.cursor=m==="add"?"copy":"";drawCps();drawTgts();drawEdit();}
-function paintPtbar(list){var bar=$("ptbar");if(!list.length){bar.style.display="none";map.getContainer().style.cursor=mode?"crosshair":"";return;}
+function paintPtbar(list){var bar=$("ptbar");if(!list.length){bar.style.display="none";map.getContainer().style.cursor=mode?"crosshair":"";layoutBars();return;}
   bar.style.display="flex";bar.innerHTML="";
   var n=list.reduce(function(a,i){return a+SEG[i].length;},0);
   bar.appendChild(h("span",{cls:"t",text:(list.length>1?(list[0]+1)+"·"+(list[1]+1)+"구간":(list[0]+1)+"구간")+" 점 "+n+"개"}));
@@ -455,7 +455,7 @@ function paintPtbar(list){var bar=$("ptbar");if(!list.length){bar.style.display=
   bar.appendChild(tol);
   bar.appendChild(h("button",{text:"↶",title:"되돌리기 (Ctrl+Z)",onclick:undo}));
   bar.appendChild(h("button",{text:"?",title:"점 편집 도움말",onclick:showHelp}));
-  if(list.some(function(i){return SEG[i].length>1500;}))bar.appendChild(h("span",{cls:"t bad",text:"점이 너무 많아요 · 먼저 '점 줄이기'"}));}
+  if(list.some(function(i){return SEG[i].length>1500;}))bar.appendChild(h("span",{cls:"t bad",text:"점이 너무 많아요 · 먼저 '점 줄이기'"}));layoutBars();}
 // 프로그램 인증 지점 (산 목록)
 function tgtOrig(id){var t=CAT.targets[id];if(!t.orig)t.orig={lat:t.lat,lon:t.lon,approx:!!t.approx};}
 function tgtMoved(t){return !!(t.orig&&(t.orig.lat!==t.lat||t.orig.lon!==t.lon));}
@@ -465,16 +465,17 @@ function catTargets(){if(!CAT)return [];var inP={};(CAT.programs||[]).forEach(fu
   if(!b||!all.length){if(map.getZoom()<10)return [];var vb=map.getBounds();b=[vb.getSouth(),vb.getWest(),vb.getNorth(),vb.getEast()];all=[];}
   return Object.keys(CAT.targets).filter(function(id){var t=CAT.targets[id];if(!inP[id]||t.lat==null)return false;if(!inBox(b,[t.lat,t.lon]))return false;
     if(id===sel.i&&sel.t==="tgt")return true;for(var k=0;k<all.length;k+=3){if(hav(all[k],[t.lat,t.lon])<1500)return true;}return !all.length;}).slice(0,300).map(function(id){return {id:id,t:CAT.targets[id],progs:inP[id]};});}
-function drawTgts(){gTgt.clearLayers();if(!SHOW.tgt)return;catTargets().forEach(function(x){var t=x.t,r=tgtCertM(t),on=sel.t==="tgt"&&sel.i===x.id,p=[t.lat,t.lon];
+var TGT_EDIT=null; // 위치 편집을 켠 인증 지점만 끌어서 옮길 수 있음
+function drawTgts(){gTgt.clearLayers();if(TGT_EDIT&&!(sel.t==="tgt"&&sel.i===TGT_EDIT))TGT_EDIT=null;if(!SHOW.tgt)return;catTargets().forEach(function(x){var t=x.t,r=tgtCertM(t),on=sel.t==="tgt"&&sel.i===x.id,p=[t.lat,t.lon];
   L.circle(p,{radius:r,color:"#b71c1c",weight:on?3:2,dashArray:"7 5",fillColor:"#e53935",fillOpacity:on?.28:.16}).on("click",function(ev){if(mode)return onMapClick(ev);L.DomEvent.stopPropagation(ev);if(ptModeClick(ev))return;select("tgt",x.id);}).addTo(gTgt);
-  var tm=L.marker(p,{icon:L.divIcon({className:"",iconSize:[0,0],html:'<div class="tg'+(on?" on":"")+'"><i></i><b>'+esc(t.n+(t.sub?" "+t.sub:""))+" · 인증 "+r+"m"+(CAT_DIRTY[x.id]?" ●":"")+'</b></div>'}),draggable:!ptMode(),zIndexOffset:on?1800:400,title:"끌어서 인증 위치 옮기기"}).addTo(gTgt);
+  var tm=L.marker(p,{icon:L.divIcon({className:"",iconSize:[0,0],html:'<div class="tg'+(on?" on":"")+(TGT_EDIT===x.id?" ed":"")+'"><i></i><b>'+esc(t.n+(t.sub?" "+t.sub:""))+" · 인증 "+r+"m"+(CAT_DIRTY[x.id]?" ●":"")+'</b></div>'}),draggable:TGT_EDIT===x.id&&!ptMode(),zIndexOffset:on?1800:400,title:TGT_EDIT===x.id?"끌어서 인증 위치 옮기기":"선택 · 옮기려면 '위치 편집'을 켜세요"}).addTo(gTgt);
   tm.on("click",function(ev){if(mode)return onMapClick(ev);if(ptModeClick(ev))return;select("tgt",x.id);});
   tm.on("dragstart",function(){tgtOrig(x.id);});
   tm.on("drag",function(ev){var ll=ev.target.getLatLng();t.lat=r6(ll.lat);t.lon=r6(ll.lng);CAT_DIRTY[x.id]=1;});
   tm.on("dragend",function(){sel={t:"tgt",i:x.id};drawTgts();renderPanels();showTab("course");toast("인증 위치를 옮겼어요 · '인증 지점 올리기'로 산 목록에 반영");});
   if(on&&tgtMoved(t)){L.polyline([[t.orig.lat,t.orig.lon],p],{color:"#b71c1c",weight:1.5,dashArray:"3 4",interactive:false}).addTo(gTgt);
     L.circleMarker([t.orig.lat,t.orig.lon],{radius:5,color:"#b71c1c",weight:2,fillColor:"#fff",fillOpacity:1,interactive:false}).bindTooltip("원래 위치",{permanent:true,direction:"left",className:""}).addTo(gTgt);}
-  if(on){var hp=L.marker(offsetE(p,r),{icon:L.divIcon({className:"",iconSize:[0,0],html:'<div class="rh" title="끌어서 인증 반경 조절"></div>'}),draggable:true,zIndexOffset:2000}).addTo(gTgt);
+  if(on&&TGT_EDIT===x.id){var hp=L.marker(offsetE(p,r),{icon:L.divIcon({className:"",iconSize:[0,0],html:'<div class="rh" title="끌어서 인증 반경 조절"></div>'}),draggable:true,zIndexOffset:2000}).addTo(gTgt);
     hp.on("drag",function(ev){var ll=ev.target.getLatLng(),d=Math.max(30,Math.min(1500,Math.round(hav(p,[ll.lat,ll.lng])/10)*10));t.certM=d;CAT_DIRTY[x.id]=1;var ri=$("tgR");if(ri)ri.value=d;});
     hp.on("dragend",function(){drawTgts();renderPanels();});}});}
 function drawAll(fit){drawRoute();drawCps();drawEdit();drawTgts();if(fit)fitAll();}
@@ -500,9 +501,11 @@ function addCpEnd(ll,atStart){push();var p=[ll[0],ll[1],null];
   if(atStart){var b=CP[0],q=cpLL(0);CP.forEach(function(c){c.km=+(+c.km+hav(p,q)/1000).toFixed(3);});CP.unshift({name:"새 출발",km:0,arrive:CP[0].arrive,depart:"",note:"",peak:false,radiusKm:0.05,cutoff:"",cutoffBy:"arrive",cutoffAction:"",route:"",lat:r6(ll[0]),lon:r6(ll[1])});SEG.unshift([p,[q[0],q[1],null]]);HOW.unshift("직선");}
   else{var n=CP.length-1,q2=cpLL(n),last=CP[n];CP.push({name:"새 도착",km:+(+last.km+hav(q2,p)/1000).toFixed(2),arrive:last.depart||last.arrive,depart:"",note:"",peak:false,radiusKm:0.05,cutoff:"",cutoffBy:"arrive",cutoffAction:"",route:"",lat:r6(ll[0]),lon:r6(ll[1])});SEG.push([[q2[0],q2[1],null],p]);HOW.push("직선");}
   select("cp",atStart?0:CP.length-1);}
-function setModebar(html,btns){var mb=$("modebar");mb.innerHTML="";if(!html){mb.style.display="none";return;}mb.style.display="flex";mb.appendChild(h("span",{html:html}));(btns||[]).forEach(function(b){mb.appendChild(b);});}
+function setModebar(html,btns){var mb=$("modebar");mb.innerHTML="";if(!html){mb.style.display="none";return;}mb.style.display="flex";mb.appendChild(h("span",{html:html}));(btns||[]).forEach(function(b){mb.appendChild(b);});layoutBars();}
+// 점 편집 막대(왼쪽 위)와 모드 안내(가운데 위)가 겹치지 않게 안내를 아래로 내림
+function layoutBars(){var mb=$("modebar"),pb=$("ptbar");mb.style.top=(pb.style.display==="flex"?pb.offsetTop+pb.offsetHeight+8:10)+"px";}
 function endMode(){mode=null;gDraw.clearLayers();setModebar(null);map.getContainer().style.cursor="";drawAll();renderPanels();}
-function startAddCp(){if(!META)return;endMode();mode={k:"addcp"};map.getContainer().style.cursor="crosshair";
+function startAddCp(){if(!META)return;endMode();mode={k:"addcp"};drawEdit();drawCps();renderPanels();map.getContainer().style.cursor="crosshair";
   setModebar("경로 위를 누르면 그 자리에 지점을 넣어요 · 경로 밖을 누르면 출발 앞/도착 뒤에 붙여요",[h("button",{text:"취소 (Esc)",onclick:endMode})]);}
 var drawFollow=ls("ce.follow")!=="0";
 function startDraw(i){if(!META)return;endMode();var pa=segEnds(i)[0];if(!pa){toast("구간 시작 지점 위치가 없어요");return;}
@@ -597,8 +600,8 @@ function tgtPanel(p){
       var o=t.orig,moved=tgtMoved(t);
       box.appendChild(h("div",{cls:"box"},[h("label",{cls:"f"},["인증 반경 (m) · 이 안을 지나간 기록이 있으면 앱이 자동 인증",ri]),
         h("div",{cls:"g2"},[h("label",{cls:"f"},["위도",la]),h("label",{cls:"f"},["경도",lo])]),
-        h("p",{cls:"msg",text:"◆ 표시를 끌면 인증 위치가 옮겨지고, 빨간 손잡이를 끌면 반경이 바뀌어요."+(moved?" 원래 위치에서 "+Math.round(hav([o.lat,o.lon],[t.lat,t.lon]))+"m 옮겼어요.":"")+(t.approx&&!moved?" (지금 좌표는 추정값)":"")}),
-        h("div",{cls:"row"},[h("button",{text:"이 산으로 이동",onclick:function(){map.setView([t.lat,t.lon],Math.max(map.getZoom(),16));}}),
+        h("p",{cls:"msg",text:(TGT_EDIT===x.id?"편집 중 · ◆ 표시를 끌면 인증 위치가 옮겨지고, 빨간 손잡이를 끌면 반경이 바뀌어요.":"'위치 편집'을 켜야 지도에서 ◆ 위치와 반경을 끌어서 바꿀 수 있어요.")+(moved?" 원래 위치에서 "+Math.round(hav([o.lat,o.lon],[t.lat,t.lon]))+"m 옮겼어요.":"")+(t.approx&&!moved?" (지금 좌표는 추정값)":"")}),
+        h("div",{cls:"row"},[h("button",{cls:TGT_EDIT===x.id?"on":"",text:TGT_EDIT===x.id?"편집 끝내기":"위치 편집",onclick:function(){TGT_EDIT=TGT_EDIT===x.id?null:x.id;drawTgts();renderPanels();}}),h("button",{text:"이 산으로 이동",onclick:function(){map.setView([t.lat,t.lon],Math.max(map.getZoom(),16));}}),
           moved?h("button",{text:"원래 위치로",onclick:function(){t.lat=o.lat;t.lon=o.lon;t.approx=o.approx;CAT_DIRTY[x.id]=1;drawTgts();renderPanels();toast("원래 위치로 돌렸어요 · 올리면 반영돼요");}}):null,
           h("button",{text:"반경 기본값(50m)",onclick:function(){t.certM=50;CAT_DIRTY[x.id]=1;drawTgts();renderPanels();}})])]));}});
   p.appendChild(box);
@@ -780,7 +783,7 @@ var HELP=[
  {t:"그 밖의 지도 동작",h:["동작","방법"],rows:[
   ["지점 옮기기","지점 표시를 끌기 (앞뒤 경로 끝도 같이 따라와요)"],
   ["도착 인정 반경","지점을 고른 뒤 원 가장자리의 빨간 손잡이를 끌기, 또는 지점 탭에서 숫자 입력 (봉우리 지점은 빨간 원)"],
-  ["인증 지점 위치 (100대 명산 등)","빨간 ◆ 표시를 끌어 옮기거나 코스 탭에서 위도·경도 입력. 코스를 안 열었으면 코스 탭에서 이름으로 찾기 → '인증 지점 올리기'"],
+  ["인증 지점 위치 (100대 명산 등)","코스 탭에서 그 지점을 고르고 '위치 편집'을 켠 뒤 빨간 ◆ 표시를 끌어 옮기거나 코스 탭에서 위도·경도 입력. 코스를 안 열었으면 코스 탭에서 이름으로 찾기 → '인증 지점 올리기'"],
   ["인증 반경 (100대 명산 등)","빨간 점선 원을 누르고 손잡이를 끌기 → 코스 탭의 '인증 지점 올리기'"],
   ["지점 추가","경로 위에서 오른쪽 클릭, 또는 지점 탭의 '지도에서 지점 추가'"],
   ["구간 다시 그리기","구간 탭 → 다시 그리기 → 지도를 차례로 클릭 ('등산로 따라'를 켜면 등산로를 따라 이어요)"],
