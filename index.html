@@ -323,13 +323,23 @@ var curLayer=null,startLayer=ls("ce.layer")||"지형 (OpenTopoMap)";
 // 네이버 지도 배경: Leaflet 아래에 네이버 지도를 깔고 위치·줌을 맞춰 움직인다 (둘 다 웹 메르카토르)
 var NAVER_TYPES={"네이버 일반":"NORMAL","네이버 위성":"HYBRID","네이버 지형":"TERRAIN"},nmap=null,naverOn=false,naverJs=null;
 Object.keys(NAVER_TYPES).forEach(function(k){LAYERS[k]=null;});
-function loadNaverJs(key){if(naverJs)return naverJs;
-  naverJs=new Promise(function(res,rej){function tryParam(param){
-      window.navermap_authFailure=function(){if(param==="ncpKeyId"){tryParam("ncpClientId");return;}naverJs=null;rej(new Error("네이버 지도 인증 실패: Client ID와 Web 서비스 URL("+location.origin+") 등록을 확인하세요"));};
-      var sc=document.createElement("script");sc.src="https://oapi.map.naver.com/openapi/v3/maps.js?"+param+"="+encodeURIComponent(key);
-      sc.onload=function(){setTimeout(function(){if(window.naver&&naver.maps&&naver.maps.Map)res();},400);};
-      sc.onerror=function(){naverJs=null;rej(new Error("네이버 지도 스크립트를 불러오지 못했어요"));};document.head.appendChild(sc);}
-    tryParam("ncpKeyId");});
+var naverTried={};
+function naverReset(){nmap=null;naverJs=null;try{delete window.naver;}catch(e){window.naver=undefined;}var el=$("nmap");el.innerHTML="";el.removeAttribute("style");el.style.display="none";
+  [].slice.call(document.scripts).forEach(function(sc){if(/oapi\.map\.naver\.com/.test(sc.src))sc.remove();});}
+function naverAuthFail(param){
+  // 새 키(ncpKeyId)로 실패하면 옛 방식(ncpClientId)으로 한 번 더, 그래도 실패하면 안내하고 다른 지도로
+  var other=param==="ncpKeyId"?"ncpClientId":"ncpKeyId";naverReset();
+  if(!naverTried[other]){naverTried[other]=1;ls("ce.naverParam",other);if(NAVER_TYPES[curLayer])setLayer(curLayer);return;}
+  naverTried={};ls("ce.naverParam","");setLayer("지형 (OpenTopoMap)");
+  showNaverErr();}
+function showNaverErr(){var mb=$("modebar");setModebar("<b>네이버 지도 인증 실패</b><br>네이버 클라우드 → Maps → Application → 변경 → Web 서비스 URL에 <b>"+location.origin+"</b> 가 있는지,<br>Client ID가 앱 설정과 같은지 확인하세요. 저장 후 반영까지 몇 분 걸릴 수 있어요.",
+  [h("button",{text:"Client ID 다시 넣기",onclick:function(){var k=(prompt("네이버 지도 Client ID",ls("ce.naverKey")||"")||"").trim();if(k){ls("ce.naverKey",k);setModebar(null);setLayer("네이버 일반");}}}),
+   h("button",{text:"다시 시도",onclick:function(){setModebar(null);setLayer("네이버 일반");}}),h("button",{text:"닫기",onclick:function(){setModebar(null);}})]);}
+function loadNaverJs(key){if(naverJs)return naverJs;var param=ls("ce.naverParam")||"ncpKeyId";naverTried[param]=1;
+  window.navermap_authFailure=function(){naverAuthFail(param);};
+  naverJs=new Promise(function(res,rej){var sc=document.createElement("script");sc.src="https://oapi.map.naver.com/openapi/v3/maps.js?"+param+"="+encodeURIComponent(key);
+    sc.onload=function(){setTimeout(function(){if(window.naver&&naver.maps&&naver.maps.Map)res();else rej(new Error("네이버 지도를 불러오지 못했어요"));},300);};
+    sc.onerror=function(){naverJs=null;rej(new Error("네이버 지도 스크립트를 불러오지 못했어요 (인터넷 확인)"));};document.head.appendChild(sc);});
   return naverJs;}
 function syncNaver(c,z){if(!nmap||!naverOn)return;c=c||map.getCenter();z=z==null?map.getZoom():z;nmap.setCenter(new naver.maps.LatLng(c.lat,c.lng));nmap.setZoom(Math.round(z),false);}
 map.on("move",function(){syncNaver();});map.on("zoomanim",function(e){syncNaver(e.center,e.zoom);});
@@ -347,7 +357,7 @@ function setLayer(name){
       draggable:false,pinchZoom:false,scrollWheel:false,keyboardShortcuts:false,disableDoubleClickZoom:true,disableDoubleTapZoom:true,disableTwoFingerTapZoom:true,
       zoomControl:false,mapTypeControl:false,scaleControl:false,mapDataControl:false,logoControl:true});
     nmap.setMapTypeId(naver.maps.MapTypeId[nt]);var el=$("nmap");nmap.setSize(new naver.maps.Size(el.clientWidth,el.clientHeight));syncNaver();})
-  .catch(function(e){toast(e.message,8000);ls("ce.naverKey","");setLayer("지형 (OpenTopoMap)");});}
+  .catch(function(e){toast(e.message,8000);setLayer("지형 (OpenTopoMap)");});}
 Object.keys(LAYERS).forEach(function(k){$("layerSel").appendChild(h("option",{value:k,text:k}));});
 $("layerSel").onchange=function(){setLayer(this.value);};
 var gNet=L.layerGroup().addTo(map),gGpx=L.layerGroup().addTo(map),gTgt=L.layerGroup().addTo(map),gRad=L.layerGroup().addTo(map),gRoute=L.layerGroup().addTo(map),gEdit=L.layerGroup().addTo(map),gCp=L.layerGroup().addTo(map),gDraw=L.layerGroup().addTo(map);
