@@ -72,6 +72,8 @@ h3{font-size:13px;margin:14px 0 6px;color:var(--muted)}
 .tg{position:relative;width:0;height:0}
 .tg i{position:absolute;left:-6px;top:-6px;width:12px;height:12px;background:#d32f2f;transform:rotate(45deg);border:2px solid #fff;box-sizing:border-box}
 .tg b{position:absolute;left:10px;top:-22px;color:#b71c1c;font-size:11px;font-weight:800;white-space:nowrap;text-shadow:0 0 3px #fff,0 0 3px #fff}
+.hp table{width:100%;border-collapse:collapse;font-size:12px;margin:4px 0 10px}.hp th{background:var(--accent);color:#fff;text-align:left;padding:5px 6px;font-weight:700;white-space:nowrap}
+.hp td{border-bottom:1px solid var(--line);padding:5px 6px;vertical-align:top}.hp td:first-child{font-weight:700;white-space:nowrap}.hp h3{color:var(--ink);font-size:14px;margin:16px 0 4px}.hp ol{padding-left:18px;margin:4px 0;font-size:13px}.hp li{margin:3px 0}
 .lg{font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:3px}
 .lg span::before{content:"";display:inline-block;width:14px;height:10px;margin-right:6px;vertical-align:-1px;border-radius:2px;background:var(--c)}
 kbd{font-size:11px;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 4px;background:#fff}
@@ -82,7 +84,7 @@ kbd{font-size:11px;border:1px solid var(--line);border-bottom-width:2px;border-r
 <div id="app">
   <aside id="side">
     <div id="top">
-      <h1><span id="ttl">산행 페이스 코스 편집기</span><span class="row"><button class="sm" id="undoB" title="되돌리기 (Ctrl+Z)">↶</button><button class="sm" id="redoB" title="다시 (Ctrl+Y)">↷</button></span></h1>
+      <h1><span id="ttl">산행 페이스 코스 편집기</span><span class="row"><button class="sm" id="helpB" title="도움말">? 도움말</button><button class="sm" id="undoB" title="되돌리기 (Ctrl+Z)">↶</button><button class="sm" id="redoB" title="다시 (Ctrl+Y)">↷</button></span></h1>
       <div class="row">
         <button id="openB">파일 열기</button>
         <button id="saveB">파일로 저장</button>
@@ -100,6 +102,7 @@ kbd{font-size:11px;border:1px solid var(--line);border-bottom-width:2px;border-r
     <section class="panel" id="p-recs"></section>
     <section class="panel" id="p-gpx"></section>
     <section class="panel" id="p-repo"></section>
+    <section class="panel" id="p-help"></section>
   </aside>
   <div id="mapWrap" style="position:relative;min-width:0"><div id="nbox"><div id="nmap"></div></div><div id="map"></div><div id="modebar"></div><div id="ptbar"></div></div>
 </div>
@@ -441,6 +444,7 @@ function paintPtbar(list){var bar=$("ptbar");if(!list.length){bar.style.display=
   tol.onchange=function(){var t=+tol.value;if(!t)return;push();var before=0,after=0;list.forEach(function(i){before+=SEG[i].length;SEG[i]=simplify(SEG[i],t);after+=SEG[i].length;HOW[i]="편집";});drawAll();renderPanels();toast(before+" → "+after+"점");};
   bar.appendChild(tol);
   bar.appendChild(h("button",{text:"↶",title:"되돌리기 (Ctrl+Z)",onclick:undo}));
+  bar.appendChild(h("button",{text:"?",title:"점 편집 도움말",onclick:showHelp}));
   if(list.some(function(i){return SEG[i].length>1500;}))bar.appendChild(h("span",{cls:"t bad",text:"점이 너무 많아요 · 먼저 '점 줄이기'"}));}
 // 프로그램 인증 지점 (산 목록)
 function tgtCertM(t){return +t.certM>0?+t.certM:(t.approx?300:200);}
@@ -527,7 +531,7 @@ function renderPanels(){
 function renderCourseStats(){if($("p-course").classList.contains("on"))renderCourse();setDirty(true);}
 function renderCourse(){var p=$("p-course");p.textContent="";
   if(!META){p.appendChild(h("div",null,[h("p",{cls:"msg",html:"<b>시작하기</b><br>① <b>저장소</b> 탭에서 GitHub 토큰을 넣고 앱의 코스를 불러오거나<br>② <b>파일 열기</b>로 Claude가 만든 코스(.json)를 열거나<br>③ GPX 파일을 열면 그 경로로 새 코스를 만들어요.<br>파일을 지도 위로 끌어다 놓아도 돼요."}),
-    h("button",{cls:"pri",text:"파일 열기",onclick:function(){$("fileIn").click();}})]));tgtPanel(p);legend(p);return;}
+    h("div",{cls:"row"},[h("button",{cls:"pri",text:"파일 열기",onclick:function(){$("fileIn").click();}}),h("button",{text:"? 도움말",onclick:function(){showHelp();}})])]));tgtPanel(p);legend(p);return;}
   var tot=0;SEG.forEach(function(s){tot+=lenM(s);});var n=exportTrack().length;
   p.appendChild(h("div",{cls:"stat"},[h("div",null,[h("b",{text:(CP[CP.length-1].km-CP[0].km).toFixed(1)+"km"}),h("small",{text:"계획 거리"})]),
     h("div",null,[h("b",{text:(tot/1000).toFixed(1)+"km"}),h("small",{text:"그린 경로"})]),h("div",null,[h("b",{text:CP.length+" / "+n}),h("small",{text:"지점 / 좌표"})])]));
@@ -718,6 +722,41 @@ function renderRecs(){var p=$("p-recs");if(!p)return;p.textContent="";
   q.oninput=paint;paint();p.appendChild(box);}
 gRec.addTo(map);gRec.bringToBack&&0;
 
+// ============ 도움말 ============
+var HELP=[
+ {t:"점(경로가 꺾이는 곳) 편집 도구",d:"구간을 고르면 그 구간의 점이, 지점(예: 봉우리)을 고르면 앞뒤 두 구간의 점이 한꺼번에 나와요. 도구는 지도 왼쪽 위에 떠요.",
+  h:["버튼","단축키","동작","쓰는 때"],rows:[
+  ["이동","1","점을 끌어서 옮김. 점 사이의 작은 주황 점을 끌면 새 점이 생김","경로를 등산로·기록 선에 맞춰 다듬을 때"],
+  ["추가","2","지도를 누른 자리에 점을 넣음. 경로가 가장 덜 꺾이는 위치에 자동으로 끼워 넣음","꺾이는 곳을 더 세밀하게 만들 때"],
+  ["삭제","3","점을 누르면 지워짐 (이동 모드에서는 오른쪽 클릭·더블클릭)","필요 없는 점 하나를 없앨 때"],
+  ["범위 삭제","4","두 점을 차례로 누르면 그 사이의 점을 모두 지움","지그재그 구간을 한 번에 정리할 때"],
+  ["점 줄이기","-","2·5·10·20m 안에서 방향이 거의 안 바뀌는 점을 지우고 꺾이는 점만 남김","점이 너무 많을 때 (1,500개 넘으면 편집이 꺼짐)"],
+  ["되돌리기","Ctrl+Z","방금 한 편집을 취소 (다시 하기 Ctrl+Y)","실수했을 때"],
+  ["이동 모드로","Esc","추가·삭제·범위 삭제 모드를 끝내고 이동 모드로","모드를 빠져나올 때"]]},
+ {t:"'기록' 탭 (GitHub의 내 산행 기록)",h:["기능","설명"],rows:[
+  ["기록 목록 불러오기","저장소에 연결하면 앱이 올린 기록 저장소(hikepace-records)에서 기록 목록을 자동으로 불러와요"],
+  ["기록 겹쳐 보기","기록을 누르면 실제로 걸은 GPS 경로가 색깔 선으로 겹쳐 보여요. 여러 개를 같이 켤 수 있어요"],
+  ["이 코스로 한 기록","지금 연 코스로 한 기록을 위쪽에 따로 모아요. 코스를 열면 최근 기록 2개를 자동으로 겹쳐요"],
+  ["참고 경로로 (GPX)","그 기록을 GPX 탭의 '구간을 이 경로대로 바꾸기'에 써요"],
+  ["앱에 올리기","편집을 마치고 누르면 앱을 열 때 고친 코스가 들어가요"]]},
+ {t:"그 밖의 지도 동작",h:["동작","방법"],rows:[
+  ["지점 옮기기","지점 표시를 끌기 (앞뒤 경로 끝도 같이 따라와요)"],
+  ["도착 인정 반경","지점을 고른 뒤 원 가장자리의 빨간 손잡이를 끌기, 또는 지점 탭에서 숫자 입력 (봉우리 지점은 빨간 원)"],
+  ["인증 반경 (100대 명산 등)","빨간 점선 원을 누르고 손잡이를 끌기 → 코스 탭의 '인증 반경 올리기'"],
+  ["지점 추가","경로 위에서 오른쪽 클릭, 또는 지점 탭의 '지도에서 지점 추가'"],
+  ["구간 다시 그리기","구간 탭 → 다시 그리기 → 지도를 차례로 클릭 ('등산로 따라'를 켜면 등산로를 따라 이어요)"],
+  ["등산로에 맞추기","코스 탭(전체) 또는 구간 탭(한 구간). '고정' 구간(도로 등)은 그대로 둬요"],
+  ["배경 지도","왼쪽 위 지도 선택 (지형·일반·위성·오픈스트리트맵·네이버 일반/위성/지형)"]]}];
+var HELP_STEPS=["Ctrl+F5로 편집기를 새로고침해요","저장소 탭에서 연결하고, 기록 탭에서 그 산의 기록을 겹쳐요","고칠 지점(예: 봉우리)을 골라 위치를 옮겨요","앞뒤 구간의 점을 기록 선에 맞춰 이동·추가해요","지그재그·필요 없는 점을 지워요 (삭제 / 범위 삭제 / 점 줄이기)","앱에 올리기 → 앱을 열거나 설정 → PC 코스 편집기 동기화 → 지금 동기화"];
+function renderHelp(){var p=$("p-help");p.textContent="";var w=h("div",{cls:"hp"});
+  w.appendChild(h("div",{cls:"row"},[h("button",{text:"← 돌아가기",onclick:function(){showTab(META?"segs":"course");}})]));
+  HELP.forEach(function(sec){w.appendChild(h("h3",{text:sec.t}));if(sec.d)w.appendChild(h("p",{cls:"msg",text:sec.d}));
+    w.appendChild(h("table",null,[h("thead",null,[h("tr",null,sec.h.map(function(x){return h("th",{text:x});}))]),h("tbody",null,sec.rows.map(function(r){return h("tr",null,r.map(function(x){return h("td",{text:x});}));}))]));});
+  w.appendChild(h("h3",{text:"코스 다듬는 순서"}));w.appendChild(h("ol",null,HELP_STEPS.map(function(x){return h("li",{text:x});})));
+  p.appendChild(w);}
+function showHelp(){renderHelp();showTab("help");}
+$("helpB").onclick=showHelp;
+
 // ============ 파일 ============
 function readFile(f,cb){var rd=new FileReader();rd.onload=function(){cb(String(rd.result),f.name);};rd.readAsText(f);}
 $("openB").onclick=function(){$("fileIn").click();};
@@ -730,6 +769,7 @@ $("upB").onclick=upload;$("undoB").onclick=undo;$("redoB").onclick=redo;
 document.addEventListener("keydown",function(e){var tag=(e.target.tagName||"").toLowerCase(),typing=tag==="input"||tag==="textarea"||tag==="select";
   if(e.key==="Escape"&&mode){endMode();return;}if(e.key==="Escape"&&PM!=="move"){setPM("move");return;}
   if(typing)return;
+  if(e.key==="?"||e.key==="F1"){e.preventDefault();showHelp();return;}
   if(!e.ctrlKey&&!e.metaKey&&editSegs().length&&"1234".indexOf(e.key)>=0&&e.key){setPM(["move","add","del","range"][+e.key-1]);return;}
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="z"){e.preventDefault();if(e.shiftKey)redo();else undo();}
   else if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="y"){e.preventDefault();redo();}
