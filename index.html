@@ -380,8 +380,8 @@ function drawRoute(){gRoute.clearLayers();
   SEG.forEach(function(s,i){if(s.length<2)return;var ll=s.map(function(p){return [p[0],p[1]];}),on=sel.t==="seg"&&sel.i===i;
     L.polyline(ll,{color:"#fff",weight:on?11:9,opacity:.95,interactive:false}).addTo(gRoute);
     var pl=L.polyline(ll,{color:segColor(i),weight:on?6:5,opacity:1,dashArray:CP[i].route==="fixed"?"10 6":null,lineCap:"round",lineJoin:"round"}).addTo(gRoute);
-    pl.on("click",function(ev){if(mode)return onMapClick(ev);L.DomEvent.stopPropagation(ev);if(PM==="add"&&editSegs().indexOf(i)>=0){insertPoint([ev.latlng.lat,ev.latlng.lng]);return;}select("seg",i);});
-    pl.on("contextmenu",function(ev){L.DomEvent.stopPropagation(ev);if(mode)return;splitAt(i,[ev.latlng.lat,ev.latlng.lng]);});
+    pl.on("click",function(ev){if(mode)return onMapClick(ev);L.DomEvent.stopPropagation(ev);if(ptModeClick(ev))return;select("seg",i);});
+    pl.on("contextmenu",function(ev){L.DomEvent.stopPropagation(ev);if(mode||ptMode())return;splitAt(i,[ev.latlng.lat,ev.latlng.lng]);});
     pl.bindTooltip((i+1)+"구간 · "+CP[i].name+" → "+CP[i+1].name,{sticky:true});});
   // 지점과 경로 끝이 떨어져 있으면 점선으로 표시
   CP.forEach(function(c,i){if(c.lat==null)return;var s=i<SEG.length?SEG[i]:null,e=i>0?SEG[i-1]:null;
@@ -390,8 +390,8 @@ function cpIcon(i){var c=CP[i],on=sel.t==="cp"&&sel.i===i;return L.divIcon({clas
 function drawCps(){gCp.clearLayers();gRad.clearLayers();
   CP.forEach(function(c,i){var p=cpLL(i);if(!p)return;var on=sel.t==="cp"&&sel.i===i,r=(+c.radiusKm||0.15)*1000;
     L.circle(p,{radius:r,color:c.peak?"#d32f2f":"#6b7280",weight:on?2.5:1.5,opacity:c.peak?.8:.6,dashArray:c.peak?null:"4 4",fillColor:c.peak?"#ef4444":"#9ca3af",fillOpacity:c.peak?.2:.06,interactive:false}).addTo(gRad);
-    var m=L.marker(p,{icon:cpIcon(i),draggable:true,zIndexOffset:on?1000:500,autoPan:true}).addTo(gCp);
-    m.on("click",function(ev){if(mode&&mode.k==="draw")return onMapClick(ev);select("cp",i);});
+    var m=L.marker(p,{icon:cpIcon(i),draggable:!ptMode(),zIndexOffset:on?1000:500,autoPan:true}).addTo(gCp);
+    m.on("click",function(ev){if(mode&&mode.k==="draw")return onMapClick(ev);if(ptModeClick(ev))return;select("cp",i);});
     m.on("dragstart",function(){push();});
     m.on("drag",function(ev){var ll=ev.target.getLatLng();moveCp(i,[ll.lat,ll.lng],true);});
     m.on("dragend",function(ev){var ll=ev.target.getLatLng();moveCp(i,[ll.lat,ll.lng]);select("cp",i);});
@@ -432,10 +432,13 @@ function drawEdit(){gEdit.clearLayers();var list=editSegs();paintPtbar(list);
       g.on("drag",function(ev){var ll=ev.target.getLatLng();s[k]=[ll.lat,ll.lng,null];drawRoute();});
       g.on("dragend",function(){editDone(i);});})(k);}});}
 // 점 추가: 고른 구간 중 경로가 가장 덜 늘어나는 자리에 끼워 넣는다
+// 점 편집(추가·삭제·범위 삭제) 중에는 지점·인증 지점·다른 구간 클릭보다 점 편집이 먼저
+function ptMode(){return PM!=="move"&&!mode&&editSegs().length>0;}
+function ptModeClick(ev){if(!ptMode())return false;if(ev&&ev.originalEvent)L.DomEvent.stopPropagation(ev);if(PM==="add")insertPoint([ev.latlng.lat,ev.latlng.lng]);return true;}
 function insertPoint(ll){var list=editSegs(),best=null;
   list.forEach(function(i){var s=SEG[i];for(var k=1;k<s.length;k++){var c=hav(s[k-1],ll)+hav(ll,s[k])-hav(s[k-1],s[k]);if(!best||c<best.c)best={i:i,k:k,c:c};}});
   if(!best)return false;push();SEG[best.i].splice(best.k,0,[ll[0],ll[1],null]);editDone(best.i);return true;}
-function setPM(m){PM=m;PRANGE=null;ls("ce.pm",m);map.getContainer().style.cursor=m==="add"?"copy":"";drawEdit();}
+function setPM(m){PM=m;PRANGE=null;ls("ce.pm",m);map.getContainer().style.cursor=m==="add"?"copy":"";drawCps();drawTgts();drawEdit();}
 function paintPtbar(list){var bar=$("ptbar");if(!list.length){bar.style.display="none";map.getContainer().style.cursor=mode?"crosshair":"";return;}
   bar.style.display="flex";bar.innerHTML="";
   var n=list.reduce(function(a,i){return a+SEG[i].length;},0);
@@ -457,9 +460,9 @@ function catTargets(){if(!CAT)return [];var inP={};(CAT.programs||[]).forEach(fu
   return Object.keys(CAT.targets).filter(function(id){var t=CAT.targets[id];if(!inP[id]||t.lat==null)return false;if(!inBox(b,[t.lat,t.lon]))return false;
     if(id===sel.i&&sel.t==="tgt")return true;for(var k=0;k<all.length;k+=3){if(hav(all[k],[t.lat,t.lon])<1500)return true;}return !all.length;}).slice(0,300).map(function(id){return {id:id,t:CAT.targets[id],progs:inP[id]};});}
 function drawTgts(){gTgt.clearLayers();if(!SHOW.tgt)return;catTargets().forEach(function(x){var t=x.t,r=tgtCertM(t),on=sel.t==="tgt"&&sel.i===x.id,p=[t.lat,t.lon];
-  L.circle(p,{radius:r,color:"#b71c1c",weight:on?3:2,dashArray:"7 5",fillColor:"#e53935",fillOpacity:on?.28:.16}).on("click",function(ev){if(mode)return onMapClick(ev);L.DomEvent.stopPropagation(ev);select("tgt",x.id);}).addTo(gTgt);
-  var tm=L.marker(p,{icon:L.divIcon({className:"",iconSize:[0,0],html:'<div class="tg'+(on?" on":"")+'"><i></i><b>'+esc(t.n+(t.sub?" "+t.sub:""))+" · 인증 "+r+"m"+(CAT_DIRTY[x.id]?" ●":"")+'</b></div>'}),draggable:true,zIndexOffset:on?1800:400,title:"끌어서 인증 위치 옮기기"}).addTo(gTgt);
-  tm.on("click",function(ev){if(mode)return onMapClick(ev);select("tgt",x.id);});
+  L.circle(p,{radius:r,color:"#b71c1c",weight:on?3:2,dashArray:"7 5",fillColor:"#e53935",fillOpacity:on?.28:.16}).on("click",function(ev){if(mode)return onMapClick(ev);L.DomEvent.stopPropagation(ev);if(ptModeClick(ev))return;select("tgt",x.id);}).addTo(gTgt);
+  var tm=L.marker(p,{icon:L.divIcon({className:"",iconSize:[0,0],html:'<div class="tg'+(on?" on":"")+'"><i></i><b>'+esc(t.n+(t.sub?" "+t.sub:""))+" · 인증 "+r+"m"+(CAT_DIRTY[x.id]?" ●":"")+'</b></div>'}),draggable:!ptMode(),zIndexOffset:on?1800:400,title:"끌어서 인증 위치 옮기기"}).addTo(gTgt);
+  tm.on("click",function(ev){if(mode)return onMapClick(ev);if(ptModeClick(ev))return;select("tgt",x.id);});
   tm.on("dragstart",function(){tgtOrig(x.id);});
   tm.on("drag",function(ev){var ll=ev.target.getLatLng();t.lat=r6(ll.lat);t.lon=r6(ll.lng);CAT_DIRTY[x.id]=1;});
   tm.on("dragend",function(){sel={t:"tgt",i:x.id};drawTgts();renderPanels();showTab("course");toast("인증 위치를 옮겼어요 · '인증 지점 올리기'로 산 목록에 반영");});
@@ -472,7 +475,7 @@ function select(t,i){sel={t:t,i:i};drawAll();renderPanels();
   if(t==="cp")showTab("cps");else if(t==="seg")showTab("segs");else if(t==="tgt")showTab("course");
   setTimeout(function(){var e=document.querySelector(".it.on");if(e)e.scrollIntoView({block:"nearest"});},30);}
 map.on("moveend",function(){if(CAT&&!SEG.length){drawTgts();if($("p-course").classList.contains("on"))renderCourse();}});
-map.on("click",function(ev){if(mode)return onMapClick(ev);if(PM==="add"&&editSegs().length){insertPoint([ev.latlng.lat,ev.latlng.lng]);return;}if(sel.t){sel={t:null,i:-1};drawAll();renderPanels();}});
+map.on("click",function(ev){if(mode)return onMapClick(ev);if(ptMode()){if(PM==="add")insertPoint([ev.latlng.lat,ev.latlng.lng]);return;}if(sel.t){sel={t:null,i:-1};drawAll();renderPanels();}});
 
 // ============ 편집 동작 ============
 function splitAt(i,ll){ // 구간 i 위의 점에 새 지점 추가
