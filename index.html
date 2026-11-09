@@ -205,6 +205,7 @@ function problems(){var e=[],w=[];
     if(i&&+c.km<+CP[i-1].km)e.push((i+1)+"번 '"+c.name+"' km가 앞 지점보다 작아요");
     if(i&&normT(c.arrive)&&normT(CP[i-1].depart||CP[i-1].arrive)&&hm(c.arrive)<hm(CP[i-1].depart||CP[i-1].arrive))w.push((i+1)+"번 '"+c.name+"' 도착 시각이 앞 지점보다 빨라요 (자정 넘김?)");});
   SEG.forEach(function(s,i){if(s.length<2)w.push((i+1)+"구간 경로가 비어 있어요");});
+  timeWarns().forEach(function(t){w.push(t);});
   return {e:e,w:w};}
 
 // ============ 코스 열기 ============
@@ -590,9 +591,11 @@ function renderCourse(){var p=$("p-course");p.textContent="";
   p.appendChild(h("h3",{text:"계획 시각 다시 계산"}));
   var st=h("input",{type:"time",value:CP[0].arrive||"08:00"}),sp=h("input",{type:"number",step:"0.1",min:"0.5",value:"2.5"}),ac=h("input",{type:"number",step:"1",min:"0",value:"0"});
   p.appendChild(h("div",{cls:"g3"},[h("label",{cls:"f"},["출발",st]),h("label",{cls:"f"},["시속(km)",sp]),h("label",{cls:"f"},["지점 휴식(분)",ac])]));
+  p.appendChild(speedBar());
   p.appendChild(h("button",{text:"도착 시각 채우기",onclick:function(){var t=hm(st.value),v=+sp.value,rest=+ac.value||0;if(t==null||!(v>0))return;push();var cur=t;
     CP.forEach(function(c,i){if(i){cur+=(c.km-CP[i-1].km)/v*60;}c.arrive=fmt(cur);if(i&&i<CP.length-1&&rest){c.depart=fmt(cur+rest);cur+=rest;}else if(i)c.depart="";});renderPanels();drawCps();toast("도착 시각을 다시 채웠어요");}}));
   var pr=problems();if(pr.e.length||pr.w.length)p.appendChild(h("div",{cls:"box"},pr.e.map(function(t){return h("p",{cls:"msg err",text:"✕ "+t});}).concat(pr.w.map(function(t){return h("p",{cls:"msg bad",text:"△ "+t});}))));
+  var en=estNotice();if(en)p.appendChild(en);
   tgtPanel(p);legend(p);}
 function legend(p){p.appendChild(h("h3",{text:"지도 표시"}));
   p.appendChild(h("div",{cls:"lg"},[h("span",{style:"--c:#2e6b45",text:"경로 (등산로 맞추기 대상)"}),h("span",{style:"--c:#2b6cb0",text:"고정 구간 (도로 등, 맞추기에서 그대로)"}),h("span",{style:"--c:#e8590c",text:"선택한 구간 · 꼭짓점 편집"}),
@@ -628,9 +631,24 @@ function tgtPanel(p){
   var nd=Object.keys(CAT_DIRTY).length;if(nd)p.appendChild(h("div",{cls:"row",style:"margin-top:8px"},[h("button",{cls:"pri",text:"인증 지점 올리기 ("+nd+"곳)",onclick:uploadCatalog}),h("span",{cls:"msg",text:"산 목록 파일 하나에 바로 반영돼요"})]));}
 // 지점 i 로 들어가는 구간의 예상(계획) 평균 속도 = 거리 ÷ (i 도착 − 이전 지점 출발) — 앱과 같은 계산
 function segKmh(i){if(i<=0||!CP[i]||!CP[i-1])return "";var t0=normT(CP[i-1].depart||CP[i-1].arrive),t1=normT(CP[i].arrive);if(!t0||!t1)return "";var t=hm(t1)-hm(t0),d=CP[i].km-CP[i-1].km;return t>0&&d>0?(d/t*60).toFixed(1):"";}
+// 구간 속도 편집 (앱과 같은 규칙): i 도착을 다시 계산하고 뒤 지점을 같은 만큼 옮김 · 쉬는 시간 유지 · 컷오프/마감은 고정
+function shiftFrom(i,dt){for(var j=i;j<CP.length;j++){var c=CP[j];if(normT(c.arrive))c.arrive=fmt(hm(c.arrive)+dt);if(normT(c.depart))c.depart=fmt(hm(c.depart)+dt);}}
+function setSpeed(i,v){var a=CP[i-1],c=CP[i],d=c.km-a.km,t0=hm(normT(a.depart||a.arrive));if(!(v>0)||!(d>0)||t0==null){toast("앞 지점 시각과 km를 먼저 넣으세요");return false;}
+  var na=Math.round(t0+d/v*60),old=hm(normT(c.arrive));if(old==null){c.arrive=fmt(na);return true;}shiftFrom(i,na-old);return true;}
+function scaleAll(f){var t=hm(normT(CP[0].depart||CP[0].arrive));if(t==null)return;var segs=CP.map(function(c,i){if(!i)return 0;return hm(c.arrive)-hm(normT(CP[i-1].depart||CP[i-1].arrive));});
+  CP.forEach(function(c,i){if(!i)return;var rest=normT(c.depart)?hm(c.depart)-hm(c.arrive):0;t+=Math.max(1,Math.round(segs[i]/f));c.arrive=fmt(t);if(normT(c.depart)){c.depart=fmt(t+rest);t+=rest;}});}
+function timeWarns(){var w=[];CP.forEach(function(c){var cu=hm(normT(c.cutoff));if(cu==null)return;var t=hm(normT(c.cutoffBy==="depart"?(c.depart||c.arrive):c.arrive));if(t!=null&&t>cu)w.push("'"+c.name+"' 컷오프 "+c.cutoff+"("+(c.cutoffBy==="depart"?"출발":"도착")+") 넘음 · 계획 "+fmt(t)+" (+"+(t-cu)+"분)");});
+  var l=CP[CP.length-1],e=META&&hm(normT(META.endTime));if(l&&e!=null){var la=hm(normT(l.depart||l.arrive));if(la!=null&&la>e)w.push((META.endLabel||"마감")+" "+META.endTime+" 넘음 · 마지막 지점 "+fmt(la)+" (+"+(la-e)+"분)");}return w;}
+function estNotice(){var est=META&&(/추정/.test(META.notes||"")||CP.some(function(c){return /추정/.test(c.note||"");}));
+  return est?h("p",{cls:"msg",style:"color:#b45309",text:"이 코스는 거리·좌표 일부가 추정이에요. '전체 실제 등산로에 맞추기' → '경로 길이로 km 바꾸기'로 km를 바로잡은 뒤 속도를 조정하세요."}):null;}
+function speedBar(){var pc=h("input",{type:"number",step:"5",value:"10",style:"width:80px"});
+  return h("div",{cls:"row"},[h("span",{cls:"msg",text:"전체 속도"}),pc,h("span",{cls:"msg",text:"%"}),h("button",{text:"적용",title:"걷는 시간만 바꾸고 출발 시각·쉬는 시간은 그대로 (10 = 10% 빠르게, -10 = 10% 느리게)",onclick:function(){var v=+pc.value||0;if(!v||v<=-90){toast("% 값을 넣으세요 (10 = 10% 빠르게)");return;}push();scaleAll(1+v/100);drawAll();renderPanels();toast("전체 구간을 "+(v>0?v+"% 빠르게":(-v)+"% 느리게")+" 다시 계산했어요");}})]);}
+function warnBox(){var w=timeWarns();return w.length?h("div",{cls:"box"},w.map(function(t){return h("p",{cls:"msg err",text:"⚠ "+t});})):null;}
 function renderCps(){var p=$("p-cps");p.textContent="";if(!META){p.appendChild(h("p",{cls:"msg",text:"코스를 먼저 여세요."}));return;}
   p.appendChild(h("div",{cls:"row"},[h("button",{cls:mode&&mode.k==="addcp"?"on":"",text:"＋ 지도에서 지점 추가",onclick:startAddCp})]));
   p.appendChild(h("p",{cls:"msg",text:"지점 표시를 끌어서 옮겨요. 선택한 지점의 빨간 손잡이를 끌면 도착 인정 반경이 바뀌어요. 봉우리(정상)로 표시한 지점은 반경이 빨간 원으로 보여요."}));
+  p.appendChild(h("p",{cls:"msg",text:"지점을 고르면 '예상 속도'(앞 지점 출발 → 이 지점 도착)를 바꿀 수 있어요. 바꾸면 도착 시각이 다시 계산되고 뒤 지점도 같이 밀리거나 당겨져요(쉬는 시간 유지, 컷오프·마감은 그대로)."}));
+  var en=estNotice();if(en)p.appendChild(en);p.appendChild(speedBar());var wb=warnBox();if(wb)p.appendChild(wb);
   var box=h("div",{cls:"list"});
   CP.forEach(function(c,i){var on=sel.t==="cp"&&sel.i===i;
     box.appendChild(h("button",{cls:"it"+(on?" on":""),onclick:function(){if(on){sel={t:null,i:-1};drawAll();renderPanels();return;}select("cp",i);var q=cpLL(i);if(q)map.panTo(q);}},[h("span",{cls:"n"+(c.peak?" pk":""),text:String(i+1)}),
@@ -641,6 +659,9 @@ function cpForm(i){var c=CP[i],f=h("div",{cls:"box"});
   function set(k,norm){return function(v,e){var nv=v;if(norm==="t"){nv=normT(v);if(nv===null){toast("시각은 HH:MM");e.value=c[k];return;}}if(norm==="n")nv=+v||0;push();c[k]=nv;drawAll();renderPanels();};}
   f.appendChild(inp("이름",c.name,set("name")));
   f.appendChild(h("div",{cls:"g3"},[inp("km",c.km,set("km","n"),{type:"number",step:"0.01",min:"0"}),inp("도착",c.arrive,set("arrive","t"),{type:"time"}),inp("출발(휴식 후)",c.depart,set("depart","t"),{type:"time"})]));
+  if(i>0){var vi=h("input",{type:"number",step:"0.1",min:"0.5",value:segKmh(i)});vi.onchange=function(){push();if(setSpeed(i,+vi.value)){drawAll();renderPanels();}};
+    var a0=CP[i-1],t0=hm(normT(a0.depart||a0.arrive)),t1=hm(normT(c.arrive));
+    f.appendChild(h("div",{cls:"g2"},[h("label",{cls:"f"},["예상 속도 (km/h)",vi]),h("p",{cls:"msg",style:"align-self:end",text:"앞 구간 "+(c.km-a0.km).toFixed(2)+"km"+(t0!=null&&t1!=null?" · "+(t1-t0)+"분":"")})]));}
   f.appendChild(inp("메모 (지점 아래 한 줄)",c.note,set("note")));
   var rr=h("input",{id:"cpR",type:"number",min:"20",max:"2000",step:"5",value:Math.round((+c.radiusKm||0.15)*1000)});rr.onchange=function(){push();c.radiusKm=Math.max(20,Math.min(2000,+rr.value||150))/1000;drawAll();renderPanels();};
   f.appendChild(h("div",{cls:"g2"},[h("label",{cls:"f"},["도착 인정 반경 (m)",rr]),h("div",null,[cbx("봉우리(정상) 지점",c.peak,function(v){push();c.peak=v;drawAll();renderPanels();}),
