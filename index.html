@@ -606,13 +606,15 @@ function tgtPanel(p){
           h("button",{text:"반경 기본값(50m)",onclick:function(){t.certM=50;CAT_DIRTY[x.id]=1;drawTgts();renderPanels();}})])]));}});
   p.appendChild(box);
   var nd=Object.keys(CAT_DIRTY).length;if(nd)p.appendChild(h("div",{cls:"row",style:"margin-top:8px"},[h("button",{cls:"pri",text:"인증 지점 올리기 ("+nd+"곳)",onclick:uploadCatalog}),h("span",{cls:"msg",text:"산 목록 파일 하나에 바로 반영돼요"})]));}
+// 지점 i 로 들어가는 구간의 예상(계획) 평균 속도 = 거리 ÷ (i 도착 − 이전 지점 출발) — 앱과 같은 계산
+function segKmh(i){if(i<=0||!CP[i]||!CP[i-1])return "";var t0=normT(CP[i-1].depart||CP[i-1].arrive),t1=normT(CP[i].arrive);if(!t0||!t1)return "";var t=hm(t1)-hm(t0),d=CP[i].km-CP[i-1].km;return t>0&&d>0?(d/t*60).toFixed(1):"";}
 function renderCps(){var p=$("p-cps");p.textContent="";if(!META){p.appendChild(h("p",{cls:"msg",text:"코스를 먼저 여세요."}));return;}
   p.appendChild(h("div",{cls:"row"},[h("button",{cls:mode&&mode.k==="addcp"?"on":"",text:"＋ 지도에서 지점 추가",onclick:startAddCp})]));
   p.appendChild(h("p",{cls:"msg",text:"지점 표시를 끌어서 옮겨요. 선택한 지점의 빨간 손잡이를 끌면 도착 인정 반경이 바뀌어요. 봉우리(정상)로 표시한 지점은 반경이 빨간 원으로 보여요."}));
   var box=h("div",{cls:"list"});
   CP.forEach(function(c,i){var on=sel.t==="cp"&&sel.i===i;
     box.appendChild(h("button",{cls:"it"+(on?" on":""),onclick:function(){if(on){sel={t:null,i:-1};drawAll();renderPanels();return;}select("cp",i);var q=cpLL(i);if(q)map.panTo(q);}},[h("span",{cls:"n"+(c.peak?" pk":""),text:String(i+1)}),
-      h("span",null,[h("b",{text:c.name}),h("small",{text:(+c.km).toFixed(2)+"km · "+(c.arrive||"--:--")+(c.depart?"~"+c.depart:"")+(c.cutoff?" · 컷오프 "+c.cutoff:"")})]),h("span",{cls:"r",text:Math.round((+c.radiusKm||0.15)*1000)+"m"+(c.lat==null?" · 좌표 없음":"")})]));
+      h("span",null,[h("b",{text:c.name}),h("small",{text:(+c.km).toFixed(2)+"km · "+(c.arrive||"--:--")+(c.depart?"~"+c.depart:"")+(segKmh(i)?" · 예상 "+segKmh(i)+"km/h":"")+(c.cutoff?" · 컷오프 "+c.cutoff:"")})]),h("span",{cls:"r",text:Math.round((+c.radiusKm||0.15)*1000)+"m"+(c.lat==null?" · 좌표 없음":"")})]));
     if(on)box.appendChild(cpForm(i));});
   p.appendChild(box);}
 function cpForm(i){var c=CP[i],f=h("div",{cls:"box"});
