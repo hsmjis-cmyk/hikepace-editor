@@ -460,7 +460,26 @@ function paintPtbar(list){var bar=$("ptbar");if(!list.length){bar.style.display=
 function tgtOrig(id){var t=CAT.targets[id];if(!t.orig)t.orig={lat:t.lat,lon:t.lon,approx:!!t.approx};}
 function tgtMoved(t){return !!(t.orig&&(t.orig.lat!==t.lat||t.orig.lon!==t.lon));}
 function tgtCertM(t){return +t.certM>0?+t.certM:(t.approx?300:200);}
-function catTargets(){if(!CAT)return [];var inP={};(CAT.programs||[]).forEach(function(p){(p.targets||[]).forEach(function(t){(inP[t]=inP[t]||[]).push(p.n||p.id);});});
+// 프로그램 필터 (앱의 산 목록 분류와 같음) — 끈 프로그램의 인증 지점은 지도·목록·찾기에서 숨김
+var PCATS=["명산","섬","대간 & 정맥","둘레길","기타"];
+function pgmCat(p){return p.cat&&PCATS.indexOf(p.cat)>=0?p.cat:(p.type==="trail"?"대간 & 정맥":p.type==="peaks"?"명산":"기타");}
+var PF_OFF=(function(){try{return JSON.parse(ls("ce.pf")||"{}")||{};}catch(e){return {};}})();
+function pfSave(){ls("ce.pf",JSON.stringify(PF_OFF));drawTgts();renderPanels();}
+function pfOn(p){return !PF_OFF[p.id];}
+function pfVisible(id){return (CAT.programs||[]).some(function(p){return pfOn(p)&&(p.targets||[]).indexOf(id)>=0;});}
+function pfPanel(){var ps=CAT.programs||[],on=ps.filter(pfOn).length;
+  var det=h("details",{cls:"fold"},[h("summary",{text:"프로그램 필터 · "+on+"/"+ps.length+" 보기"})]);
+  det.open=ls("ce.pfOpen")==="1";det.addEventListener("toggle",function(){ls("ce.pfOpen",det.open?"1":"0");});
+  det.appendChild(h("div",{cls:"row"},[h("button",{cls:"sm",text:"모두 보기",onclick:function(){PF_OFF={};pfSave();}}),h("button",{cls:"sm",text:"모두 끄기",onclick:function(){ps.forEach(function(p){PF_OFF[p.id]=1;});pfSave();}})]));
+  PCATS.forEach(function(cat){var g=ps.filter(function(p){return pgmCat(p)===cat;});if(!g.length)return;
+    var allOn=g.every(pfOn);
+    det.appendChild(h("div",{style:"margin:6px 0 2px;display:flex;align-items:center;gap:6px"},[h("b",{text:cat}),h("button",{cls:"sm",text:allOn?"끄기":"켜기",onclick:function(){g.forEach(function(p){if(allOn)PF_OFF[p.id]=1;else delete PF_OFF[p.id];});pfSave();}})]));
+    var row=h("div",{style:"display:flex;flex-wrap:wrap;gap:4px 10px"});
+    g.forEach(function(p){var cb=h("input",{type:"checkbox",style:"width:auto;margin:0;flex:none"});cb.checked=pfOn(p);cb.onchange=function(){if(cb.checked)delete PF_OFF[p.id];else PF_OFF[p.id]=1;pfSave();};
+      row.appendChild(h("label",{style:"display:inline-flex;align-items:center;gap:4px;font-size:13px;width:auto;margin:0;white-space:nowrap;cursor:pointer"},[cb,h("span",{text:(p.n||p.id).replace(/^블랙야크 /,"")+" ("+(p.targets||[]).length+")"})]));});
+    det.appendChild(row);});
+  return det;}
+function catTargets(){if(!CAT)return [];var inP={};(CAT.programs||[]).filter(pfOn).forEach(function(p){(p.targets||[]).forEach(function(t){(inP[t]=inP[t]||[]).push(p.n||p.id);});});
   var b=courseBox(0.02),all=[];SEG.forEach(function(s){s.forEach(function(p){all.push(p);});});
   if(!b||!all.length){if(map.getZoom()<10)return [];var vb=map.getBounds();b=[vb.getSouth(),vb.getWest(),vb.getNorth(),vb.getEast()];all=[];}
   return Object.keys(CAT.targets).filter(function(id){var t=CAT.targets[id];if(!inP[id]||t.lat==null)return false;if(!inBox(b,[t.lat,t.lon]))return false;
@@ -584,9 +603,10 @@ function legend(p){p.appendChild(h("h3",{text:"지도 표시"}));
   p.appendChild(h("p",{cls:"msg",html:"<kbd>Ctrl</kbd>+<kbd>Z</kbd> 되돌리기 · <kbd>Esc</kbd> 그리기 취소 · 경로 오른쪽 클릭 = 그 자리에 지점 추가 · 꼭짓점 오른쪽 클릭/더블클릭 = 지우기"}));}
 function tgtPanel(p){
   if(!CAT){p.appendChild(h("p",{cls:"msg",text:"저장소를 연결하면 이 코스 근처의 프로그램 인증 지점(100대 명산 등)과 인증 반경이 빨간 점선 원으로 보여요."}));return;}
-  var list=catTargets();p.appendChild(h("h3",{text:(META?"근처 인증 지점 (":"지도 화면 안 인증 지점 (")+list.length+")"}));
+  var list=catTargets();p.appendChild(pfPanel());p.appendChild(h("h3",{text:(META?"근처 인증 지점 (":"지도 화면 안 인증 지점 (")+list.length+")"}));
   var q=h("input",{type:"search",placeholder:"산·인증 지점 이름으로 찾기 (예: 서래봉, 가리왕산)"});
   q.addEventListener("keydown",function(e){if(e.key!=="Enter")return;var v=q.value.trim();if(!v)return;var hit=Object.keys(CAT.targets).filter(function(id){var t=CAT.targets[id];return t.lat!=null&&(t.n+" "+(t.sub||"")).indexOf(v)>=0;});
+    var vis=hit.filter(pfVisible);if(hit.length&&!vis.length){toast("'"+v+"'은(는) 꺼 둔 프로그램에만 있어요 · 위 '프로그램 필터'에서 켜세요",6000);return;}hit=vis;
     if(!hit.length){toast("'"+v+"' 인증 지점이 없어요");return;}var t=CAT.targets[hit[0]];sel={t:"tgt",i:hit[0]};map.setView([t.lat,t.lon],16);setTimeout(function(){drawTgts();renderPanels();},50);if(hit.length>1)toast(hit.length+"곳 중 첫 번째로 이동 · 이름을 더 자세히 쓰면 좁혀져요");});
   p.appendChild(q);
   if(!list.length){p.appendChild(h("p",{cls:"msg",text:META?"이 코스 1.5km 안에 프로그램 인증 지점이 없어요. 위에서 이름으로 찾을 수 있어요.":"지도를 확대(10 이상)하거나 이름으로 찾으세요."}));}
