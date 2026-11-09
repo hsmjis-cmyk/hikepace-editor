@@ -195,7 +195,7 @@ function exportTrack(){var out=[];
 function toPublic(){
   var o=Object.assign({},META.extra||{},{format:"hikepace-course",version:1,id:META.id,updatedAt:META.updatedAt||0,name:META.name,sport:META.sport||"hike",date:META.date||"",endTime:META.endTime||"",endLabel:META.endLabel||"",notes:META.notes||""});
   o.checkpoints=CP.map(function(c){var x={name:c.name,km:+(+c.km).toFixed(3),arrive:c.arrive||"",depart:c.depart||"",note:c.note||"",peak:!!c.peak,cutoff:c.cutoff||"",cutoffBy:c.cutoffBy==="depart"?"depart":"arrive",cutoffAction:c.cutoffAction||"",radiusKm:+(+c.radiusKm||0.15).toFixed(3)};
-    if(c.route==="fixed")x.route="fixed";var p=cpLL(CP.indexOf(c));if(c.lat!=null&&isFinite(c.lat)){x.lat=r6(c.lat);x.lon=r6(c.lon);}else if(p){x.lat=r6(p[0]);x.lon=r6(p[1]);}return x;});
+    if(c.route==="fixed")x.route="fixed";if(c.cutoffAlt)x.cutoffAlt=c.cutoffAlt;var p=cpLL(CP.indexOf(c));if(c.lat!=null&&isFinite(c.lat)){x.lat=r6(c.lat);x.lon=r6(c.lon);}else if(p){x.lat=r6(p[0]);x.lon=r6(p[1]);}return x;});
   o.track=exportTrack();delete o.rev;return o;}
 function problems(){var e=[],w=[];
   if(!META)return {e:["코스가 없어요"],w:w};
@@ -210,12 +210,12 @@ function problems(){var e=[],w=[];
 
 // ============ 코스 열기 ============
 function newId(){return "c"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);}
-function loadCourse(o,src){
+function loadCourse(o,src){ALT_CACHE={};
   if(!o||!Array.isArray(o.checkpoints)||o.checkpoints.length<2)throw new Error("코스 파일(hikepace-course) 형식이 아니에요");
   var extra={};for(var k in o){if(["format","version","id","updatedAt","name","sport","date","endTime","endLabel","notes","checkpoints","track"].indexOf(k)<0)extra[k]=o[k];}
   META={id:String(o.id||newId()),updatedAt:+o.updatedAt||0,name:String(o.name||"새 코스"),sport:o.sport||"hike",date:o.date||"",endTime:o.endTime||"",endLabel:o.endLabel||"",notes:o.notes||"",extra:extra,src:src||""};
   CP=o.checkpoints.map(function(x){return {name:String(x.name||"지점"),km:+x.km||0,arrive:normT(x.arrive)||"",depart:normT(x.depart)||"",note:x.note||"",peak:!!x.peak,radiusKm:+x.radiusKm>0?+x.radiusKm:0.15,
-    cutoff:normT(x.cutoff)||"",cutoffBy:x.cutoffBy==="depart"?"depart":"arrive",cutoffAction:x.cutoffAction||"",route:x.route==="fixed"?"fixed":"",lat:x.lat!=null&&isFinite(+x.lat)?+x.lat:null,lon:x.lon!=null&&isFinite(+x.lon)?+x.lon:null};});
+    cutoff:normT(x.cutoff)||"",cutoffBy:x.cutoffBy==="depart"?"depart":"arrive",cutoffAction:x.cutoffAction||"",cutoffAlt:String(x.cutoffAlt||""),route:x.route==="fixed"?"fixed":"",lat:x.lat!=null&&isFinite(+x.lat)?+x.lat:null,lon:x.lon!=null&&isFinite(+x.lon)?+x.lon:null};});
   CP.sort(function(a,b){return a.km-b.km;});
   SEG=buildSegs(calibrate(Array.isArray(o.track)?o.track:[],CP));HOW=SEG.map(function(){return "";});
   undoS=[];redoS=[];sel={t:null,i:-1};lastSaved=null;setDirty(false);
@@ -498,7 +498,39 @@ function drawTgts(){gTgt.clearLayers();if(TGT_EDIT&&!(sel.t==="tgt"&&sel.i===TGT
   if(on&&TGT_EDIT===x.id){var hp=L.marker(offsetE(p,r),{icon:L.divIcon({className:"",iconSize:[0,0],html:'<div class="rh" title="끌어서 인증 반경 조절"></div>'}),draggable:true,zIndexOffset:2000}).addTo(gTgt);
     hp.on("drag",function(ev){var ll=ev.target.getLatLng(),d=Math.max(30,Math.min(1500,Math.round(hav(p,[ll.lat,ll.lng])/10)*10));t.certM=d;CAT_DIRTY[x.id]=1;var ri=$("tgR");if(ri)ri.value=d;});
     hp.on("dragend",function(){drawTgts();renderPanels();});}});}
-function drawAll(fit){drawRoute();drawCps();drawEdit();drawTgts();if(fit)fitAll();}
+function drawAll(fit){drawRoute();drawCps();drawEdit();drawTgts();drawAlts();if(fit)fitAll();}
+// ============ 대안 코스 (META.extra.alts = [{id,label}], 지점 cutoffAlt) — 앱과 같은 형식 ============
+var gAlt=null,ALT_CACHE={};
+function altList(){return META&&META.extra&&Array.isArray(META.extra.alts)?META.extra.alts:[];}
+function altPath(id){var e=LIST&&LIST.cloud?LIST.cloud.filter(function(x){return x.id===id;})[0]:null;return e&&e.path?e.path:CS_DIR+id+".json";}
+function altLoad(id){if(ALT_CACHE[id])return Promise.resolve(ALT_CACHE[id]);if(!TOKEN)return Promise.resolve(null);
+  return ghGetJson(altPath(id)).then(function(r){if(r.missing)return null;ALT_CACHE[id]=r.data;return r.data;}).catch(function(){return null;});}
+// 대안 경로가 지금 코스 경로에서 처음 60m 넘게 벗어나는 곳 = 갈라지는 지점
+function altSplit(tr){var main=[];SEG.forEach(function(sg){sg.forEach(function(q){main.push(q);});});if(!main.length||!tr||tr.length<2)return null;
+  for(var i=0;i<tr.length;i+=1){var q=[tr[i][0],tr[i][1]],m=1e9;for(var k=0;k<main.length;k++){var d=hav(q,main[k]);if(d<m)m=d;if(m<60)break;}if(m>=60)return {i:i,ll:i?[tr[i-1][0],tr[i-1][1]]:q,km:i?tr[i-1][2]:0};}return null;}
+function drawAlts(){if(!gAlt)gAlt=L.layerGroup().addTo(map);gAlt.clearLayers();if(!META)return;
+  altList().forEach(function(a){var o=ALT_CACHE[a.id];if(!o||!Array.isArray(o.track)||o.track.length<2)return;
+    L.polyline(o.track.map(function(q){return [q[0],q[1]];}),{color:"#7c3aed",weight:4,opacity:.7,dashArray:"8 7",interactive:false}).addTo(gAlt);
+    var sp=altSplit(o.track);if(sp)L.circleMarker(sp.ll,{radius:7,color:"#7c3aed",weight:3,fillColor:"#fff",fillOpacity:1}).bindTooltip("대안 '"+(a.label||o.name)+"' 갈라지는 곳 · 대안 "+(+sp.km).toFixed(1)+"km",{permanent:false}).addTo(gAlt);});}
+function altPanel(p){var alts=altList();p.appendChild(h("h3",{text:"대안 코스"}));
+  p.appendChild(h("p",{cls:"msg",text:"산행 중 바꿔 탈 코스를 연결해요(예: 8봉 → 7봉으로 줄이기). 앱 진행 화면에서 지금 페이스로 도착 예상을 비교하고 '바꾸기'로 바꿔요(기록은 이어짐). 지도에 보라색 점선과 갈라지는 곳(○)으로 보여요."}));
+  alts.forEach(function(a,i){var o=ALT_CACHE[a.id];var li=h("input",{value:a.label||"",placeholder:"짧은 이름 (예: 7봉으로 줄이기)"});li.onchange=function(){push();a.label=li.value.trim();renderPanels();};
+    var box=h("div",{cls:"box"},[h("div",{cls:"row"},[h("b",{text:o?o.name:a.id}),h("button",{cls:"sm",text:"지도 맞추기",disabled:!o,onclick:function(){if(o&&o.track&&o.track.length)map.fitBounds(L.latLngBounds(o.track.map(function(q){return [q[0],q[1]];})).pad(0.1));}}),
+      h("button",{cls:"sm danger",text:"빼기",onclick:function(){push();META.extra.alts.splice(i,1);CP.forEach(function(c){if(c.cutoffAlt===a.id)c.cutoffAlt="";});drawAlts();renderPanels();}})]),h("label",{cls:"f"},["표시 이름",li])]);
+    if(o){var L2=o.checkpoints[o.checkpoints.length-1],L1=CP[CP.length-1],sp=altSplit(o.track);
+      box.appendChild(h("p",{cls:"msg",text:"계획 도착 "+(L1.arrive||"--")+" (지금 코스) vs "+(L2.arrive||"--")+" (대안) · 대안 "+(+L2.km).toFixed(1)+"km"+(sp?" · 대안 "+(+sp.km).toFixed(1)+"km 지점에서 갈라짐":"")}));
+      var t=h("table",{cls:"cmp",style:"width:100%;font-size:12px;border-collapse:collapse"});t.appendChild(h("tr",null,["대안 지점","km","도착","예상 속도"].map(function(x){return h("th",{style:"text-align:left",text:x});})));
+      o.checkpoints.forEach(function(x,j){var v="";if(j){var pv=o.checkpoints[j-1],t0=hm(normT(pv.depart||pv.arrive)),t1=hm(normT(x.arrive)),d=x.km-pv.km;if(t0!=null&&t1!=null&&t1>t0&&d>0)v=(d/(t1-t0)*60).toFixed(1);}
+        t.appendChild(h("tr",null,[h("td",{text:x.name}),h("td",{text:(+x.km).toFixed(2)}),h("td",{text:(x.arrive||"")+(x.depart?"~"+x.depart:"")}),h("td",{text:v?v+"km/h":""})]));});
+      box.appendChild(h("details",{cls:"fold"},[h("summary",{text:"대안 시간표 보기"}),t]));}
+    else box.appendChild(h("p",{cls:"msg",text:TOKEN?"불러오는 중이거나 저장소에 없는 코스예요.":"저장소 탭에서 토큰을 넣으면 대안 경로와 시간표가 보여요."}));
+    p.appendChild(box);
+    if(!o)altLoad(a.id).then(function(x){if(x){drawAlts();renderPanels();}});});
+  var cand=LIST&&LIST.cloud?LIST.cloud.filter(function(e){return e.id!==META.id&&!alts.some(function(a){return a.id===e.id;});}):[];
+  if(cand.length){var sel=h("select",null,[h("option",{value:"",text:"+ 대안 코스 추가 (앱 코스에서)…"})].concat(cand.map(function(e){return h("option",{value:e.id,text:e.name});})));
+    sel.onchange=function(){if(!sel.value)return;push();if(!META.extra)META.extra={};if(!Array.isArray(META.extra.alts))META.extra.alts=[];META.extra.alts.push({id:sel.value,label:""});
+      altLoad(sel.value).then(function(){drawAlts();renderPanels();});renderPanels();};p.appendChild(sel);}
+  else if(!LIST)p.appendChild(h("p",{cls:"msg",text:"저장소 탭에서 앱 코스 목록을 불러오면 대안 코스를 고를 수 있어요."}));}
 function fitAll(){var b=courseBox(0.002);if(b)map.fitBounds([[b[0],b[1]],[b[2],b[3]]]);}
 function select(t,i){sel={t:t,i:i};drawAll();renderPanels();
   if(t==="cp")showTab("cps");else if(t==="seg")showTab("segs");else if(t==="tgt")showTab("course");
@@ -584,6 +616,7 @@ function renderCourse(){var p=$("p-course");p.textContent="";
   p.appendChild(h("div",{cls:"g2"},[inp("마감 시각",META.endTime,setM("endTime"),{type:"time"}),inp("마감 이름",META.endLabel,setM("endLabel"),{placeholder:"버스 출발"})]));
   var ta=h("textarea",{value:META.notes||""});ta.onchange=function(){push();META.notes=ta.value;};p.appendChild(h("label",{cls:"f"},["메모",ta]));
   p.appendChild(h("label",{cls:"f"},["코스 id (같은 id로 올리면 앱의 같은 코스가 바뀌어요)",h("input",{value:META.id,readonly:true})]));
+  altPanel(p);
   p.appendChild(h("h3",{text:"경로 전체"}));
   p.appendChild(h("div",{cls:"row"},[h("button",{cls:"pri",text:"전체 실제 등산로에 맞추기",onclick:alignAll}),h("button",{text:"등산로 데이터 보기",title:"오픈스트리트맵 길(초록)과 출입 금지·비공식 길(검은 점선)을 지도에 표시",onclick:showNet}),h("button",{text:"지도 맞추기",onclick:fitAll})]));
   p.appendChild(h("p",{cls:"msg",text:"오픈스트리트맵 등산로·도로를 따라 지점 사이를 다시 그려요. '고정' 구간과 거리가 크게 다른 구간은 그대로 둬요."}));
@@ -667,6 +700,8 @@ function cpForm(i){var c=CP[i],f=h("div",{cls:"box"});
   f.appendChild(h("div",{cls:"g2"},[h("label",{cls:"f"},["도착 인정 반경 (m)",rr]),h("div",null,[cbx("봉우리(정상) 지점",c.peak,function(v){push();c.peak=v;drawAll();renderPanels();}),
     i<CP.length-1?cbx("다음 구간 고정 (도로)",c.route==="fixed",function(v){push();c.route=v?"fixed":"";drawAll();renderPanels();}):null])]));
   f.appendChild(h("div",{cls:"g3"},[inp("컷오프",c.cutoff,set("cutoff","t"),{type:"time"}),h("label",{cls:"f"},["기준",(function(){var s=h("select",null,[h("option",{value:"arrive",text:"도착"}),h("option",{value:"depart",text:"출발"})]);s.value=c.cutoffBy||"arrive";s.onchange=function(){push();c.cutoffBy=s.value;};return s;})()]),inp("컷오프 행동",c.cutoffAction,set("cutoffAction"))]));
+  if(altList().length){var cs=h("select",null,[h("option",{value:"",text:"없음"})].concat(altList().map(function(a){var o=ALT_CACHE[a.id];return h("option",{value:a.id,text:a.label||(o?o.name:a.id)});})));cs.value=c.cutoffAlt||"";
+    cs.onchange=function(){push();c.cutoffAlt=cs.value;renderPanels();};f.appendChild(h("label",{cls:"f"},["컷오프 넘기면 권할 대안 코스",cs]));}
   f.appendChild(h("div",{cls:"row"},[h("button",{text:"경로에 붙이기",title:"지점을 가장 가까운 경로 위로 옮겨요",onclick:function(){var q=cpLL(i),best=null;SEG.forEach(function(s){var r=s.length>1?nearestOn(s,q,1):null;if(r&&(!best||r.d<best.d))best=r;});if(best)moveCp(i,best.ll);}}),
     h("button",{text:"경로 끝을 지점으로",title:"앞뒤 구간 끝점을 이 지점 좌표로 맞춰요",onclick:function(){var q=cpLL(i);if(!q)return;push();moveCp(i,q);}}),
     h("button",{cls:"danger",text:"지점 삭제",disabled:i===0||i===CP.length-1,onclick:function(){delCp(i);}})]));
