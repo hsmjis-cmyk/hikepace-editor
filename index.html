@@ -615,6 +615,10 @@ function renderCourse(){var p=$("p-course");p.textContent="";
   p.appendChild(h("div",{cls:"g2"},[inp("날짜",META.date,setM("date"),{type:"date"}),h("label",{cls:"f"},["종류",(function(){var s=h("select",null,[["hike","등산"],["walk","걷기"],["run","달리기"]].map(function(o){return h("option",{value:o[0],text:o[1]});}));s.value=META.sport||"hike";s.onchange=function(){push();META.sport=s.value;};return s;})()])]));
   p.appendChild(h("div",{cls:"g2"},[inp("마감 시각",META.endTime,setM("endTime"),{type:"time"}),inp("마감 이름",META.endLabel,setM("endLabel"),{placeholder:"버스 출발"})]));
   var ta=h("textarea",{value:META.notes||""});ta.onchange=function(){push();META.notes=ta.value;};p.appendChild(h("label",{cls:"f"},["메모",ta]));
+  function setX(k){return function(v){push();if(!META.extra)META.extra={};META.extra[k]=v;renderPanels();};}
+  p.appendChild(h("div",{cls:"g2"},[inp("산 (목록 묶음)",(META.extra||{}).group||"",setX("group"),{placeholder:"비우면 '"+crsGroupE({name:META.name})+"'"}),inp("코스 묶음 이름 (대안끼리)",(META.extra||{}).family||"",setX("family"),{placeholder:"예: 13성문 종주"})]));
+  var ac=h("input",{type:"checkbox",style:"width:auto"});ac.checked=!!(META.extra||{}).archived;ac.onchange=function(){push();if(!META.extra)META.extra={};META.extra.archived=ac.checked;};
+  p.appendChild(h("label",{style:"display:flex;gap:6px;align-items:center"},[ac,"보관 (앱 목록 맨 아래 보관함으로)"]));
   p.appendChild(h("label",{cls:"f"},["코스 id (같은 id로 올리면 앱의 같은 코스가 바뀌어요)",h("input",{value:META.id,readonly:true})]));
   altPanel(p);
   p.appendChild(h("h3",{text:"경로 전체"}));
@@ -677,6 +681,15 @@ function estNotice(){var est=META&&(/추정/.test(META.notes||"")||CP.some(funct
 function speedBar(){var pc=h("input",{type:"number",step:"5",value:"10",style:"width:80px"});
   return h("div",{cls:"row"},[h("span",{cls:"msg",text:"전체 속도"}),pc,h("span",{cls:"msg",text:"%"}),h("button",{text:"적용",title:"걷는 시간만 바꾸고 출발 시각·쉬는 시간은 그대로 (10 = 10% 빠르게, -10 = 10% 느리게)",onclick:function(){var v=+pc.value||0;if(!v||v<=-90){toast("% 값을 넣으세요 (10 = 10% 빠르게)");return;}push();scaleAll(1+v/100);drawAll();renderPanels();toast("전체 구간을 "+(v>0?v+"% 빠르게":(-v)+"% 느리게")+" 다시 계산했어요");}})]);}
 function warnBox(){var w=timeWarns();return w.length?h("div",{cls:"box"},w.map(function(t){return h("p",{cls:"msg err",text:"⚠ "+t});})):null;}
+// 앱 코스 정리용 (index.json 항목: group·family·alts·archived·date)
+function crsGroupE(e){if(e.group)return e.group;var m=(e.name||"").trim().match(/^[^\s(·]+/);return m?m[0]:"기타";}
+function shortE(e){var g=crsGroupE(e),n=(e.name||"").trim();if(n.indexOf(g)===0&&n.length>g.length)n=n.slice(g.length).trim();n=n.replace(/^\((.*)\)$/,"$1").trim();return n||e.name;}
+function famsE(list){var ids={},par={};list.forEach(function(e){ids[e.id]=1;par[e.id]=e.id;});function f(x){while(par[x]!==x){par[x]=par[par[x]];x=par[x];}return x;}
+  list.forEach(function(e){(e.alts||[]).forEach(function(a){if(ids[a]){var r1=f(e.id),r2=f(a);if(r1!==r2)par[r2]=r1;}});});
+  var fam={},o=[];list.forEach(function(e){var r=f(e.id);if(!fam[r]){fam[r]=[];o.push(r);}fam[r].push(e);});return o.map(function(r){return fam[r];});}
+function famTitleE(fs){var n=fs.filter(function(e){return e.family;})[0];if(n)return n.family;var ns=fs.map(shortE),pre=ns[0];ns.forEach(function(x){var i=0;while(i<pre.length&&i<x.length&&pre[i]===x[i])i++;pre=pre.slice(0,i);});pre=pre.replace(/[\s(·,]+$/,"").trim();return pre.length>=2?pre:ns[0];}
+function indexEntry(o,path,by){return {id:o.id,name:o.name,updatedAt:o.updatedAt,path:path,km:o.checkpoints.length?o.checkpoints[o.checkpoints.length-1].km:0,by:by,
+  group:o.group||"",family:o.family||"",alts:(o.alts||[]).map(function(a){return a.id;}),archived:!!o.archived,date:o.date||""};}
 function renderCps(){var p=$("p-cps");p.textContent="";if(!META){p.appendChild(h("p",{cls:"msg",text:"코스를 먼저 여세요."}));return;}
   p.appendChild(h("div",{cls:"row"},[h("button",{cls:mode&&mode.k==="addcp"?"on":"",text:"＋ 지도에서 지점 추가",onclick:startAddCp})]));
   p.appendChild(h("p",{cls:"msg",text:"지점 표시를 끌어서 옮겨요. 선택한 지점의 빨간 손잡이를 끌면 도착 인정 반경이 바뀌어요. 봉우리(정상)로 표시한 지점은 반경이 빨간 원으로 보여요."}));
@@ -759,7 +772,7 @@ function upload(){
   function step(retry){return gh("GET",path).then(function(r){var sha=r.ok&&r.j?r.j.sha:null;return ghPutJson(path,body,"코스 편집기: "+META.name,sha);})
     .then(function(){return ghGetJson(CS_DIR+"index.json");}).then(function(ix){var data=ix.missing?{format:"hikepace-cloud-courses",version:1,courses:[]}:ix.data;
       if(Array.isArray(data.deleted))data.deleted=data.deleted.filter(function(x){return x&&x.id!==META.id;});
-      data.courses=(data.courses||[]).filter(function(e){return e.id!==META.id;}).concat([{id:META.id,name:META.name,updatedAt:META.updatedAt,path:path,km:CP[CP.length-1].km,by:"pc"}])
+      data.courses=(data.courses||[]).filter(function(e){return e.id!==META.id;}).concat([indexEntry(toPublic(),path,"pc")])
         .sort(function(a,b){return String(a.name).localeCompare(String(b.name),"ko");});data.updated=Date.now();
       return ghPutJson(CS_DIR+"index.json",data,"코스 편집기: 코스 목록",ix.sha).then(function(){LIST=LIST||{cloud:[],files:[]};LIST.cloud=data.courses;});})
     .catch(function(e){if(e.status===409&&!retry)return step(true);throw e;});}
@@ -802,8 +815,17 @@ function renderRepo(){var p=$("p-repo");p.textContent="";
     h("li",{text:"Permissions → Contents: Read and write"}),h("li",{text:"만든 github_pat_… 를 위 칸에 붙여넣기 (앱에 넣은 토큰을 써도 돼요)"})])]));
   if(!LIST)return;
   var emptyMsg=LIST.cloud.length?null:h("p",{cls:"msg",text:"아직 없어요. 새 앱(v5.9)을 열면 앱의 코스가 여기로 올라와요."});
-  var b1=h("div",{cls:"list"});LIST.cloud.forEach(function(e){var on=META&&META.id===e.id;b1.appendChild(h("div",{style:"display:flex;gap:4px;align-items:stretch"},[h("button",{cls:"it"+(on?" on":""),style:"flex:1;min-width:0",onclick:function(){openCloud(e.path||CS_DIR+e.id+".json",e.name);}},
-    [h("span",{cls:"n",text:e.by==="pc"?"P":"A"}),h("span",null,[h("b",{text:e.name}),h("small",{text:(e.km!=null?(+e.km).toFixed(1)+"km · ":"")+(e.updatedAt?new Date(e.updatedAt).toLocaleString("ko-KR"):"")+(e.by==="pc"?" · PC에서 고침":" · 앱에서 올림")})]),h("span",{cls:"r",text:"열기 ›"})]),h("button",{cls:"danger",title:"앱 코스에서 삭제 (앱에서도 지워져요)",style:"padding:4px 8px;font-size:12px",text:"삭제",onclick:function(){delCloud(e);}})]));});
+  // 앱 코스: 산 → 코스 묶음(대안끼리) → 선택지 (앱 '전체 코스'와 같은 정리)
+  function cRow(e,label,indent){var on=META&&META.id===e.id;return h("div",{style:"display:flex;gap:4px;align-items:stretch"+(indent?";padding-left:14px":"")},[h("button",{cls:"it"+(on?" on":""),style:"flex:1;min-width:0",onclick:function(){openCloud(e.path||CS_DIR+e.id+".json",e.name);}},
+    [h("span",{cls:"n",text:e.by==="pc"?"P":"A"}),h("span",null,[h("b",{text:label||e.name}),h("small",{text:(e.km!=null?(+e.km).toFixed(1)+"km · ":"")+(e.date?e.date.slice(5).replace("-","/")+" · ":"")+(e.updatedAt?new Date(e.updatedAt).toLocaleString("ko-KR"):"")+(e.by==="pc"?" · PC에서 고침":" · 앱에서 올림")})]),h("span",{cls:"r",text:"열기 ›"})]),h("button",{cls:"danger",title:"앱 코스에서 삭제 (앱에서도 지워져요)",style:"padding:4px 8px;font-size:12px",text:"삭제",onclick:function(){delCloud(e);}})]);}
+  var b1=h("div",{cls:"list"});
+  (function(){var all=LIST.cloud,act=all.filter(function(e){return !e.archived;}),arch=all.filter(function(e){return e.archived;}),G={},gk=[];
+    act.forEach(function(e){var g=crsGroupE(e);if(!G[g]){G[g]=[];gk.push(g);}G[g].push(e);});
+    gk.sort(function(a,b){return a.localeCompare(b);}).forEach(function(g){b1.appendChild(h("div",{style:"margin:8px 0 2px;font-weight:700"},["⛰ "+g,h("small",{cls:"msg",text:"  코스 "+G[g].length})]));famsE(G[g]).forEach(function(fs){
+      if(fs.length===1){b1.appendChild(cRow(fs[0],shortE(fs[0])));return;}var t=famTitleE(fs);
+      b1.appendChild(h("div",{style:"margin:4px 0 0 4px"},[h("b",{text:t}),h("small",{cls:"msg",text:"  선택지 "+fs.length})]));
+      fs.forEach(function(e){var lb=shortE(e);if(lb.indexOf(t)===0&&lb.length>t.length){var r=lb.slice(t.length).trim().replace(/^\((.*)\)$/,"$1").trim();if(r)lb=r;}b1.appendChild(cRow(e,"· "+lb,true));});});});
+    if(arch.length){b1.appendChild(h("div",{style:"margin:10px 0 2px;font-weight:700",text:"보관함 · "+arch.length}));arch.forEach(function(e){b1.appendChild(cRow(e));});}})();
   // 앱 코스: 기본은 펼침 (접어 두면 이 PC에 기억)
   var det1=h("details",{cls:"fold"},[h("summary",{text:"앱 코스 (cloud/courses) · "+LIST.cloud.length}),emptyMsg,b1]);
   det1.open=ls("ce.foldCloud")!=="closed";det1.addEventListener("toggle",function(){ls("ce.foldCloud",det1.open?"":"closed");});
