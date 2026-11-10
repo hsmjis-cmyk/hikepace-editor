@@ -695,7 +695,7 @@ function tgtPanel(p){
   p.appendChild(box);
   var nd=Object.keys(CAT_DIRTY).length;if(nd)p.appendChild(h("div",{cls:"row",style:"margin-top:8px"},[h("button",{cls:"pri",text:"인증 지점 올리기 ("+nd+"곳)",onclick:uploadCatalog}),h("span",{cls:"msg",text:"산 목록 파일 하나에 바로 반영돼요"})]));}
 // 지점 i 로 들어가는 구간의 예상(계획) 평균 속도 = 거리 ÷ (i 도착 − 이전 지점 출발) — 앱과 같은 계산
-function segKmh(i){if(i<=0||!CP[i]||!CP[i-1])return "";var t0=normT(CP[i-1].depart||CP[i-1].arrive),t1=normT(CP[i].arrive);if(!t0||!t1)return "";var t=hm(t1)-hm(t0),d=CP[i].km-CP[i-1].km;return t>0&&d>0?(d/t*60).toFixed(1):"";}
+function segKmh(i){if(i<=0||!CP[i]||!CP[i-1])return "";var t0=normT(CP[i-1].depart||CP[i-1].arrive),t1=normT(CP[i].arrive);if(!t0||!t1)return "";return hpKmh(CP[i].km-CP[i-1].km,hm(t1)-hm(t0));}
 // 구간 속도 편집 (앱과 같은 규칙): i 도착을 다시 계산하고 뒤 지점을 같은 만큼 옮김 · 쉬는 시간 유지 · 컷오프/마감은 고정
 function shiftFrom(i,dt){for(var j=i;j<CP.length;j++){var c=CP[j];if(normT(c.arrive))c.arrive=fmt(hm(c.arrive)+dt);if(normT(c.depart))c.depart=fmt(hm(c.depart)+dt);}}
 function setSpeed(i,v){var a=CP[i-1],c=CP[i],d=c.km-a.km,t0=hm(normT(a.depart||a.arrive));if(!(v>0)||!(d>0)||t0==null){toast("앞 지점 시각과 km를 먼저 넣으세요");return false;}
@@ -705,20 +705,39 @@ function scaleAll(f){var t=hm(normT(CP[0].depart||CP[0].arrive));if(t==null)retu
 function timeWarns(){var w=[];CP.forEach(function(c){var cu=hm(normT(c.cutoff));if(cu==null)return;var t=hm(normT(c.cutoffBy==="depart"?(c.depart||c.arrive):c.arrive));if(t!=null&&t>cu)w.push("'"+c.name+"' 컷오프 "+c.cutoff+"("+(c.cutoffBy==="depart"?"출발":"도착")+") 넘음 · 계획 "+fmt(t)+" (+"+(t-cu)+"분)");});
   var l=CP[CP.length-1],e=META&&hm(normT(META.endTime));if(l&&e!=null){var la=hm(normT(l.depart||l.arrive));if(la!=null&&la>e)w.push((META.endLabel||"마감")+" "+META.endTime+" 넘음 · 마지막 지점 "+fmt(la)+" (+"+(la-e)+"분)");}return w;}
 // "계획 09:00 → 13:43 (총 4시간 43분)" — whole planned time, start depart(or arrive) to finish arrive
-function planSpanE(){if(!CP||CP.length<2)return "";var a=hm(normT(CP[0].depart||CP[0].arrive)),b=hm(normT(CP[CP.length-1].arrive));if(a==null||b==null)return "";var m=b-a;if(m<0)m+=1440;
-  return "계획 "+fmt(a)+" → "+fmt(b)+" (총 "+(m>=60?Math.floor(m/60)+"시간 "+(m%60)+"분":m+"분")+")";}
+function planSpanE(){if(!CP||CP.length<2)return "";var a=normT(CP[0].depart||CP[0].arrive),b=normT(CP[CP.length-1].arrive),m=hpSpanMin(a,b);if(m==null)return "";
+  return "계획 "+a+" → "+b+" (총 "+hpDur(m)+")";}
 function estNotice(){var est=META&&(/추정/.test(META.notes||"")||CP.some(function(c){return /추정/.test(c.note||"");}));
   return est?h("p",{cls:"msg",style:"color:#b45309",text:"이 코스는 거리·좌표 일부가 추정이에요. '전체 실제 등산로에 맞추기' → '경로 길이로 km 바꾸기'로 km를 바로잡은 뒤 속도를 조정하세요."}):null;}
 function speedBar(){var pc=h("input",{type:"number",step:"5",value:"10",style:"width:80px"});
   return h("div",{cls:"row"},[h("span",{cls:"msg",text:"전체 속도"}),pc,h("span",{cls:"msg",text:"%"}),h("button",{text:"적용",title:"걷는 시간만 바꾸고 출발 시각·쉬는 시간은 그대로 (10 = 10% 빠르게, -10 = 10% 느리게)",onclick:function(){var v=+pc.value||0;if(!v||v<=-90){toast("% 값을 넣으세요 (10 = 10% 빠르게)");return;}push();scaleAll(1+v/100);drawAll();renderPanels();toast("전체 구간을 "+(v>0?v+"% 빠르게":(-v)+"% 느리게")+" 다시 계산했어요");}})]);}
 function warnBox(){var w=timeWarns();return w.length?h("div",{cls:"box"},w.map(function(t){return h("p",{cls:"msg err",text:"⚠ "+t});})):null;}
 // 앱 코스 정리용 (index.json 항목: group·family·alts·archived·date)
-function crsGroupE(e){if(e.group)return e.group;var m=(e.name||"").trim().match(/^[^\s(·]+/);return m?m[0]:"기타";}
-function shortE(e){var g=crsGroupE(e),n=(e.name||"").trim();if(n.indexOf(g)===0&&n.length>g.length)n=n.slice(g.length).trim();n=n.replace(/^\((.*)\)$/,"$1").trim();return n||e.name;}
-function famsE(list){var ids={},par={};list.forEach(function(e){ids[e.id]=1;par[e.id]=e.id;});function f(x){while(par[x]!==x){par[x]=par[par[x]];x=par[x];}return x;}
-  list.forEach(function(e){(e.alts||[]).forEach(function(a){if(ids[a]){var r1=f(e.id),r2=f(a);if(r1!==r2)par[r2]=r1;}});});
-  var fam={},o=[];list.forEach(function(e){var r=f(e.id);if(!fam[r]){fam[r]=[];o.push(r);}fam[r].push(e);});return o.map(function(r){return fam[r];});}
-function famTitleE(fs){var n=fs.filter(function(e){return e.family;})[0];if(n)return n.family;var ns=fs.map(shortE),pre=ns[0];ns.forEach(function(x){var i=0;while(i<pre.length&&i<x.length&&pre[i]===x[i])i++;pre=pre.slice(0,i);});pre=pre.replace(/[\s(·,]+$/,"").trim();return pre.length>=2?pre:ns[0];}
+// <hp-common>
+// ===== 산행 페이스 공통 규칙 (앱 web/index.src.html · 편집기 pc/course-editor.html 이 같이 씀) =====
+// 이 파일만 고치고 `python3 tools/inline_common.py` 로 두 파일의 <hp-common> 블록을 갱신한다. 두 파일 안의 블록을 직접 고치지 않는다.
+// 코스 c: {id,name,group,family,alts:[{id,label}] 또는 ["id"]} — 앱 코스와 index.json 항목 둘 다 받는다.
+function hpGroup(c){if(c.group)return c.group;var m=(c.name||"").trim().match(/^[^\s(·]+/);return m?m[0]:"기타";}
+function hpShort(c){var g=hpGroup(c),n=(c.name||"").trim();if(n.indexOf(g)===0&&n.length>g.length)n=n.slice(g.length).trim();n=n.replace(/^\((.*)\)$/,"$1").trim();return n||c.name;}
+function hpAltId(a){return typeof a==="string"?a:(a&&a.id);}
+// 대안(alts)으로 서로 이어진 코스끼리 한 묶음 (union-find) · 목록 순서 유지
+function hpFamilies(list){var ids={},par={};list.forEach(function(c){ids[c.id]=1;par[c.id]=c.id;});
+  function f(x){while(par[x]!==x){par[x]=par[par[x]];x=par[x];}return x;}
+  list.forEach(function(c){(c.alts||[]).forEach(function(a){a=hpAltId(a);if(ids[a]){var r1=f(c.id),r2=f(a);if(r1!==r2)par[r2]=r1;}});});
+  var fam={},order=[];list.forEach(function(c){var r=f(c.id);if(!fam[r]){fam[r]=[];order.push(r);}fam[r].push(c);});
+  return order.map(function(r){return fam[r];});}
+// 묶음 이름: family 값이 있으면 그것, 없으면 짧은 이름들의 공통 앞부분(2자 이상), 그것도 없으면 첫 코스 이름
+function hpFamTitle(fs){var named=fs.filter(function(c){return c.family;})[0];if(named)return named.family;
+  var ns=fs.map(hpShort),pre=ns[0];ns.forEach(function(n){var i=0;while(i<pre.length&&i<n.length&&pre[i]===n[i])i++;pre=pre.slice(0,i);});
+  pre=pre.replace(/[\s(·,]+$/,"").trim();return pre.length>=2?pre:ns[0];}
+// 구간 예상 평균 속도 (km, 분) → "2.5" (km/h) · 계산 안 되면 ""
+function hpKmh(km,min){return min>0&&km>0?(km/min*60).toFixed(1):"";}
+// "4시간 43분" / "35분"
+function hpDur(m){m=Math.round(Math.abs(m||0));return m>=60?Math.floor(m/60)+"시간 "+(m%60)+"분":m+"분";}
+// 두 시각("HH:MM") 사이 분 · 자정 넘김 처리 · 안 되면 null
+function hpSpanMin(a,b){function t(s){var m=/^(\d{1,2}):(\d{2})/.exec(s||"");return m?+m[1]*60+ +m[2]:null;}var x=t(a),y=t(b);if(x==null||y==null)return null;var d=y-x;return d<0?d+1440:d;}
+// </hp-common>
+var crsGroupE=hpGroup,shortE=hpShort,famsE=hpFamilies,famTitleE=hpFamTitle;
 function indexEntry(o,path,by){return {id:o.id,name:o.name,updatedAt:o.updatedAt,path:path,km:o.checkpoints.length?o.checkpoints[o.checkpoints.length-1].km:0,by:by,
   group:o.group||"",family:o.family||"",alts:(o.alts||[]).map(function(a){return a.id;}),archived:!!o.archived,date:o.date||""};}
 function renderCps(){var p=$("p-cps");p.textContent="";if(!META){p.appendChild(h("p",{cls:"msg",text:"코스를 먼저 여세요."}));return;}
