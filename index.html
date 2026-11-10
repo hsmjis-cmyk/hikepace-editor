@@ -717,7 +717,9 @@ function warnBox(){var w=timeWarns();return w.length?h("div",{cls:"box"},w.map(f
 // ===== 산행 페이스 공통 규칙 (앱 web/index.src.html · 편집기 pc/course-editor.html 이 같이 씀) =====
 // 이 파일만 고치고 `python3 tools/inline_common.py` 로 두 파일의 <hp-common> 블록을 갱신한다. 두 파일 안의 블록을 직접 고치지 않는다.
 // 코스 c: {id,name,group,family,alts:[{id,label}] 또는 ["id"]} — 앱 코스와 index.json 항목 둘 다 받는다.
-function hpGroup(c){if(c.group)return c.group;var m=(c.name||"").trim().match(/^[^\s(·]+/);return m?m[0]:"기타";}
+// 둘레길 코스: 이름이나 묶음 이름에 '둘레길' — 산 등산과 따로 '둘레길'로 묶는다 (예: '북한산 둘레길 1구간' → 묶음 '북한산 둘레길')
+function hpIsTrail(c){return /둘레길/.test((c.name||"")+" "+(c.group||""));}
+function hpGroup(c){if(c.group)return c.group;var n=(c.name||"").trim(),t=n.match(/^(.*?둘레길)/);if(t)return t[1].trim();var m=n.match(/^[^\s(·]+/);return m?m[0]:"기타";}
 function hpShort(c){var g=hpGroup(c),n=(c.name||"").trim();if(n.indexOf(g)===0&&n.length>g.length)n=n.slice(g.length).trim();n=n.replace(/^\((.*)\)$/,"$1").trim();return n||c.name;}
 function hpAltId(a){return typeof a==="string"?a:(a&&a.id);}
 // 대안(alts)으로 서로 이어진 코스끼리 한 묶음 (union-find) · 목록 순서 유지
