@@ -704,6 +704,9 @@ function scaleAll(f){var t=hm(normT(CP[0].depart||CP[0].arrive));if(t==null)retu
   CP.forEach(function(c,i){if(!i)return;var rest=normT(c.depart)?hm(c.depart)-hm(c.arrive):0;t+=Math.max(1,Math.round(segs[i]/f));c.arrive=fmt(t);if(normT(c.depart)){c.depart=fmt(t+rest);t+=rest;}});}
 function timeWarns(){var w=[];CP.forEach(function(c){var cu=hm(normT(c.cutoff));if(cu==null)return;var t=hm(normT(c.cutoffBy==="depart"?(c.depart||c.arrive):c.arrive));if(t!=null&&t>cu)w.push("'"+c.name+"' 컷오프 "+c.cutoff+"("+(c.cutoffBy==="depart"?"출발":"도착")+") 넘음 · 계획 "+fmt(t)+" (+"+(t-cu)+"분)");});
   var l=CP[CP.length-1],e=META&&hm(normT(META.endTime));if(l&&e!=null){var la=hm(normT(l.depart||l.arrive));if(la!=null&&la>e)w.push((META.endLabel||"마감")+" "+META.endTime+" 넘음 · 마지막 지점 "+fmt(la)+" (+"+(la-e)+"분)");}return w;}
+// "계획 09:00 → 13:43 (총 4시간 43분)" — whole planned time, start depart(or arrive) to finish arrive
+function planSpanE(){if(!CP||CP.length<2)return "";var a=hm(normT(CP[0].depart||CP[0].arrive)),b=hm(normT(CP[CP.length-1].arrive));if(a==null||b==null)return "";var m=b-a;if(m<0)m+=1440;
+  return "계획 "+fmt(a)+" → "+fmt(b)+" (총 "+(m>=60?Math.floor(m/60)+"시간 "+(m%60)+"분":m+"분")+")";}
 function estNotice(){var est=META&&(/추정/.test(META.notes||"")||CP.some(function(c){return /추정/.test(c.note||"");}));
   return est?h("p",{cls:"msg",style:"color:#b45309",text:"이 코스는 거리·좌표 일부가 추정이에요. '전체 실제 등산로에 맞추기' → '경로 길이로 km 바꾸기'로 km를 바로잡은 뒤 속도를 조정하세요."}):null;}
 function speedBar(){var pc=h("input",{type:"number",step:"5",value:"10",style:"width:80px"});
@@ -722,6 +725,7 @@ function renderCps(){var p=$("p-cps");p.textContent="";if(!META){p.appendChild(h
   p.appendChild(h("div",{cls:"row"},[h("button",{cls:mode&&mode.k==="addcp"?"on":"",text:"＋ 지도에서 지점 추가",onclick:startAddCp}),APP?h("button",{text:"📍 내 위치에 지점 추가",onclick:hereAdd}):null]));
   p.appendChild(h("p",{cls:"msg",text:"지점 표시를 끌어서 옮겨요. 선택한 지점의 빨간 손잡이를 끌면 도착 인정 반경이 바뀌어요. 봉우리(정상)로 표시한 지점은 반경이 빨간 원으로 보여요."}));
   p.appendChild(h("p",{cls:"msg",text:"지점을 고르면 '예상 속도'(앞 지점 출발 → 이 지점 도착)를 바꿀 수 있어요. 바꾸면 도착 시각이 다시 계산되고 뒤 지점도 같이 밀리거나 당겨져요(쉬는 시간 유지, 컷오프·마감은 그대로)."}));
+  var sp0=planSpanE();if(sp0)p.appendChild(h("p",{cls:"msg",style:"font-weight:700",text:sp0}));
   var en=estNotice();if(en)p.appendChild(en);p.appendChild(speedBar());var wb=warnBox();if(wb)p.appendChild(wb);
   var box=h("div",{cls:"list"});
   CP.forEach(function(c,i){var on=sel.t==="cp"&&sel.i===i;
