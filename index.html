@@ -100,6 +100,7 @@ body.app #toast{bottom:auto;top:12px;max-width:92vw}
 .meDot{width:16px;height:16px;margin:-8px 0 0 -8px;border-radius:50%;background:#1a73e8;border:3px solid #fff;box-shadow:0 0 0 6px rgba(26,115,232,.25)}
 #locB{position:absolute;right:10px;top:84px;z-index:1000;display:none;font-size:20px;width:44px;height:44px;padding:0;border-radius:10px;box-shadow:0 1px 5px rgba(0,0,0,.3)}
 body.app #locB{display:block}
+.ptab{border-collapse:collapse;font-size:12px;width:100%;margin:4px 0 8px}.ptab th,.ptab td{border-bottom:1px solid #e3e6e1;padding:4px 5px;text-align:right;white-space:nowrap}.ptab th{color:#667;font-weight:600}.ptab td.l,.ptab th:first-child{text-align:left;white-space:normal;word-break:keep-all}.ptab tr.sum td{font-weight:700;border-top:2px solid #cfd5cc}
 </style>
 </head>
 <body>
@@ -215,7 +216,7 @@ function exportTrack(){var out=[];
 function toPublic(){
   var o=Object.assign({},META.extra||{},{format:"hikepace-course",version:1,id:META.id,updatedAt:META.updatedAt||0,name:META.name,sport:META.sport||"hike",date:META.date||"",endTime:META.endTime||"",endLabel:META.endLabel||"",notes:META.notes||""});
   o.checkpoints=CP.map(function(c){var x={name:c.name,km:+(+c.km).toFixed(3),arrive:c.arrive||"",depart:c.depart||"",note:c.note||"",peak:!!c.peak,cutoff:c.cutoff||"",cutoffBy:c.cutoffBy==="depart"?"depart":"arrive",cutoffAction:c.cutoffAction||"",radiusKm:+(+c.radiusKm||0.15).toFixed(3)};
-    if(c.route==="fixed")x.route="fixed";if(c.cutoffAlt)x.cutoffAlt=c.cutoffAlt;var p=cpLL(CP.indexOf(c));if(c.lat!=null&&isFinite(c.lat)){x.lat=r6(c.lat);x.lon=r6(c.lon);}else if(p){x.lat=r6(p[0]);x.lon=r6(p[1]);}return x;});
+    if(c.route==="fixed")x.route="fixed";if(c.cutoffAlt)x.cutoffAlt=c.cutoffAlt;if(c.up!=null&&isFinite(c.up)){x.up=Math.round(c.up);x.dn=Math.round(c.dn||0);}var p=cpLL(CP.indexOf(c));if(c.lat!=null&&isFinite(c.lat)){x.lat=r6(c.lat);x.lon=r6(c.lon);}else if(p){x.lat=r6(p[0]);x.lon=r6(p[1]);}return x;});
   o.track=exportTrack();delete o.rev;return o;}
 function problems(){var e=[],w=[];
   if(!META)return {e:["코스가 없어요"],w:w};
@@ -235,10 +236,10 @@ function loadCourse(o,src){ALT_CACHE={};
   var extra={};for(var k in o){if(["format","version","id","updatedAt","name","sport","date","endTime","endLabel","notes","checkpoints","track"].indexOf(k)<0)extra[k]=o[k];}
   META={id:String(o.id||newId()),updatedAt:+o.updatedAt||0,name:String(o.name||"새 코스"),sport:o.sport||"hike",date:o.date||"",endTime:o.endTime||"",endLabel:o.endLabel||"",notes:o.notes||"",extra:extra,src:src||""};
   CP=o.checkpoints.map(function(x){return {name:String(x.name||"지점"),km:+x.km||0,arrive:normT(x.arrive)||"",depart:normT(x.depart)||"",note:x.note||"",peak:!!x.peak,radiusKm:+x.radiusKm>0?+x.radiusKm:0.15,
-    cutoff:normT(x.cutoff)||"",cutoffBy:x.cutoffBy==="depart"?"depart":"arrive",cutoffAction:x.cutoffAction||"",cutoffAlt:String(x.cutoffAlt||""),route:x.route==="fixed"?"fixed":"",lat:x.lat!=null&&isFinite(+x.lat)?+x.lat:null,lon:x.lon!=null&&isFinite(+x.lon)?+x.lon:null};});
+    cutoff:normT(x.cutoff)||"",cutoffBy:x.cutoffBy==="depart"?"depart":"arrive",cutoffAction:x.cutoffAction||"",cutoffAlt:String(x.cutoffAlt||""),route:x.route==="fixed"?"fixed":"",up:x.up!=null&&isFinite(+x.up)?+x.up:null,dn:x.dn!=null&&isFinite(+x.dn)?+x.dn:null,lat:x.lat!=null&&isFinite(+x.lat)?+x.lat:null,lon:x.lon!=null&&isFinite(+x.lon)?+x.lon:null};});
   CP.sort(function(a,b){return a.km-b.km;});
   SEG=buildSegs(calibrate(Array.isArray(o.track)?o.track:[],CP));HOW=SEG.map(function(){return "";});
-  undoS=[];redoS=[];sel={t:null,i:-1};lastSaved=null;setDirty(false);
+  undoS=[];redoS=[];sel={t:null,i:-1};lastSaved=null;setDirty(false);ROUTE_SIG=segLens();
   drawAll(true);autoRecs();renderPanels();toast("'"+META.name+"' 열었어요 · 지점 "+CP.length+" · 좌표 "+exportTrack().length);
 }
 function parseGpx(t){var d=new DOMParser().parseFromString(t,"application/xml");if(d.getElementsByTagName("parsererror").length)throw new Error("GPX를 읽지 못했어요");
@@ -620,6 +621,134 @@ function alignOne(i){ensureNet().then(function(net){var bk=snap(),r=alignSeg(i,n
   else{toast("이 구간 양 끝 150m 안에 등산로가 없어요. '다시 그리기'로 그려 주세요",6000);return;}
   drawAll();renderPanels();}).catch(function(e){toast(e.message,6000);});}
 
+// ============ 내 페이스 · 고도 기준 시간 계산 (v7.8) ============
+var PACE=hpPace((function(){try{return JSON.parse(ls("ce.pace")||"null");}catch(e){return null;}})()),PACE_PATH="cloud/pace.json",PACE_FILE=null,PACE_SHA=null,PFIT=null,PMSG="";
+var ELE={},ELE_SRC="",ROUTE_SIG=null;
+function eleKey(p){return (+p[0]).toFixed(5)+","+(+p[1]).toFixed(5);}
+function eleSrcName(){return ELE_SRC==="meteo"?"Open-Meteo 90m":ELE_SRC==="topo"?"SRTM 30m":"";}
+// 좌표 목록 → 고도(m). SRTM 30m(opentopodata)를 먼저 쓰고, 안 되면 Open-Meteo. 한 번 받은 좌표는 다시 받지 않는다.
+function fetchEle(pts){var need=[],seen={};pts.forEach(function(p){var k=eleKey(p);if(ELE[k]===undefined&&!seen[k]){seen[k]=1;need.push(k);}});
+  var chunks=[];for(var i=0;i<need.length;i+=100)chunks.push(need.slice(i,i+100));
+  function js(u){return fetch(u).then(function(r){if(!r.ok)throw new Error("고도 서버 오류 "+r.status);return r.json();});}
+  function topo(ks){return js("https://api.opentopodata.org/v1/srtm30m?locations="+ks.join("|")).then(function(j){if(!j.results||j.results.length!==ks.length)throw new Error("고도 응답 오류");return j.results.map(function(x){return x.elevation;});});}
+  function meteo(ks){return js("https://api.open-meteo.com/v1/elevation?latitude="+ks.map(function(k){return k.split(",")[0];}).join(",")+"&longitude="+ks.map(function(k){return k.split(",")[1];}).join(","))
+    .then(function(j){if(!j.elevation||j.elevation.length!==ks.length)throw new Error("고도 응답 오류");return j.elevation;});}
+  var seq=Promise.resolve();
+  chunks.forEach(function(ks,ci){seq=seq.then(function(){var f=ELE_SRC==="meteo"?meteo(ks):topo(ks).catch(function(){ELE_SRC="meteo";return meteo(ks);});
+    return f.then(function(el){if(!ELE_SRC)ELE_SRC="topo";ks.forEach(function(k,i){ELE[k]=el[i]==null||!isFinite(el[i])?null:+el[i];});})
+      .then(function(){return ci<chunks.length-1&&ELE_SRC==="topo"?new Promise(function(r){setTimeout(r,window.__eleDelay==null?1100:window.__eleDelay);}):null;});});});
+  return seq.then(function(){return pts.map(function(p){return ELE[eleKey(p)];});},function(e){throw new Error("고도를 못 받았어요 (인터넷 연결 확인) · "+e.message);});}
+// 경로를 stepM 간격으로 다시 찍는다 (양 끝 포함)
+function resample(pts,stepM){if(!pts||pts.length<2)return [];var out=[[pts[0][0],pts[0][1]]],acc=0,next=stepM;
+  for(var i=1;i<pts.length;i++){var a=pts[i-1],b=pts[i],d=hav(a,b);while(d>0&&acc+d>=next){var f=(next-acc)/d;out.push([a[0]+f*(b[0]-a[0]),a[1]+f*(b[1]-a[1])]);next+=stepM;}acc+=d;}
+  var L=pts[pts.length-1],q=out[out.length-1];if(out.length>1&&hav(q,L)<stepM*0.3)out[out.length-1]=[L[0],L[1]];else out.push([L[0],L[1]]);return out;}
+function segLens(){return SEG.map(function(s){return Math.round(lenM(s));});}
+function routeChanged(){if(!ROUTE_SIG)return false;var n=segLens();return n.length!==ROUTE_SIG.length||n.some(function(v,i){return Math.abs(v-ROUTE_SIG[i])>5;});}
+// 시각을 식으로 자동 계산해도 되는 코스는 planBy:"model" 뿐. 그 밖(공식 시간×비율, 기록 기준, 표시 없음)은 시각을 건드리지 않는다
+function isOfficial(){return !(META&&META.extra&&META.extra.planBy==="model");}
+// 경로 기준으로 다시 계산: km(경로 길이) · 구간별 오름/내림(고도) · 도착 시각(내 페이스 식). 쉬는 시간·컷오프·마감은 그대로.
+// opts {km:경로 길이로 km도 바꿈, times:시각도 다시 계산, start:"HH:MM"}
+function recalcModel(opts){if(!META)return Promise.resolve(false);opts=opts||{};
+  var sam=SEG.map(function(s){return resample(s,100);}),all=[];sam.forEach(function(a){all=all.concat(a);});
+  toast("경로 고도를 받는 중…",15000);
+  return fetchEle(all).then(function(){push();
+    if(opts.km){var g=[0];SEG.forEach(function(s,i){g.push(g[i]+lenM(s)/1000);});CP.forEach(function(c,i){c.km=+(CP[0].km+g[i]).toFixed(2);});}
+    var st=normT(opts.start||"")||normT(CP[0].arrive)||"09:00",t=hm(st),miss=0;
+    if(opts.times){var r0=normT(CP[0].depart)&&normT(CP[0].arrive)?hm(CP[0].depart)-hm(CP[0].arrive):0;CP[0].arrive=fmt(t);if(r0>0){CP[0].depart=fmt(t+r0);t+=r0;}}
+    for(var i=1;i<CP.length;i++){var c=CP[i],el=sam[i-1].map(function(p){return ELE[eleKey(p)];});if(!el.length||el.some(function(e){return e==null;}))miss++;
+      var cl=hpClimb(el);c.up=Math.round(cl.up);c.dn=Math.round(cl.dn);
+      if(opts.times){var rest=normT(c.depart)&&normT(c.arrive)&&i<CP.length-1?Math.max(0,hm(c.depart)-hm(c.arrive)):0;
+        t+=Math.max(1,Math.round(hpModelMin(c.km-CP[i-1].km,cl.up,cl.dn,PACE,CP[i-1].route==="fixed")));c.arrive=fmt(t);if(rest>0){c.depart=fmt(t+rest);t+=rest;}else c.depart="";}}
+    if(!META.extra)META.extra={};
+    if(opts.times){META.extra.planBy="model";META.extra.plan={pace:hpPace(PACE),ele:ELE_SRC,at:Date.now()};}
+    ROUTE_SIG=segLens();drawAll();renderPanels();
+    var pl=hpPlan(planCps());toast((opts.times?"다시 계산했어요 · ":"km·오름/내림을 다시 계산했어요 · ")+hpPlanLine(pl)+(miss?" · 고도 없는 구간 "+miss+"개":""),9000);return true;})
+  .catch(function(e){toast(e.message,7000);return false;});}
+function planCps(){return CP.map(function(c){return {n:c.name,km:+c.km,a:normT(c.arrive)||"",d:normT(c.depart)||"",up:c.up,dn:c.dn};});}
+// 계획 표 (앱 코스 화면과 같은 양식)
+function planTable(){var pl=hpPlan(planCps()),t=h("table",{cls:"ptab"});
+  t.appendChild(h("tr",null,["구간","거리","오름/내림","이동","속도","휴식","도착"].map(function(x){return h("th",{text:x});})));
+  pl.rows.forEach(function(r){t.appendChild(h("tr",null,[h("td",{cls:"l",text:"→ "+r.to}),h("td",{text:r.km.toFixed(2)}),h("td",{text:r.up==null?"–":"+"+r.up+"/−"+r.dn}),h("td",{text:hpHM(r.min)}),h("td",{text:r.kmh||"–"}),h("td",{text:r.rest?r.rest+"분":"–"}),h("td",{text:r.arrive||""})]));});
+  t.appendChild(h("tr",{cls:"sum"},[h("td",{cls:"l",text:"합계"}),h("td",{text:pl.km.toFixed(2)}),h("td",{text:pl.up==null?"–":"+"+pl.up+"/−"+pl.dn}),h("td",{text:hpHM(pl.move)}),h("td",{text:pl.kmhMove||"–"}),h("td",{text:pl.rest?pl.rest+"분":"–"}),h("td",{text:""})]));
+  return h("div",null,[h("p",{cls:"msg",style:"font-weight:700",text:hpPlanLine(pl)}),h("div",{style:"overflow-x:auto"},[t]),
+    pl.up==null?h("p",{cls:"msg",text:"오름/내림이 아직 없어요. 코스 탭의 '고도로 시각 다시 계산'이나 'km·오름/내림만'을 누르면 채워져요."}):null]);}
+// 저장 전에: 경로가 바뀌었는데 다시 계산하지 않았으면 물어본다
+function beforeSave(){if(!META||!routeChanged())return Promise.resolve();
+  var off=isOfficial(),ok=confirm(off?"경로가 바뀌었어요. 이 코스는 공식 시간·기록 기준이라 km와 오름/내림만 다시 계산할게요(시각은 그대로).\n\n[확인] 다시 계산 후 저장 · [취소] 그대로 저장"
+    :"경로가 바뀌었어요. 거리(km)·오름/내림·도착 시각을 내 페이스 식으로 다시 계산하고 저장할까요? (쉬는 시간은 그대로)\n\n[확인] 다시 계산 후 저장 · [취소] 그대로 저장");
+  if(!ok){var n=segLens(),same=n.length===ROUTE_SIG.length;CP.forEach(function(c,i){if(i&&(!same||Math.abs(n[i-1]-ROUTE_SIG[i-1])>5)){c.up=null;c.dn=null;}});ROUTE_SIG=n;return Promise.resolve();}
+  return recalcModel({km:true,times:!off}).then(function(done){if(!done)throw new Error("다시 계산하지 못해서 저장하지 않았어요. 인터넷을 확인하거나, 다시 저장을 눌러 '취소(그대로 저장)'를 고르세요.");});}
+// ---- 내 페이스 파일 (저장소 cloud/pace.json · 앱과 편집기가 같이 씀) ----
+function setPace(p,quiet){PACE=hpPace(p);ls("ce.pace",JSON.stringify(PACE));if(!quiet)renderPanels();}
+function loadPace(){if(APP||!TOKEN)return Promise.resolve();return ghGetJson(PACE_PATH).then(function(r){if(r.missing){PACE_FILE=null;PACE_SHA=null;return;}PACE_FILE=r.data;PACE_SHA=r.sha;setPace(r.data);}).catch(function(){});}
+function paceObj(){var old=PACE_FILE||{},hist=(old.history||[]).slice(-19),p=hpPace(PACE);hist.push({at:Date.now(),perKm:p.perKm,up:p.up,dn:p.dn,roadKm:p.roadKm,margin:p.margin});
+  var o={format:"hikepace-pace",version:1,updatedAt:Date.now(),perKm:p.perKm,up:p.up,dn:p.dn,roadKm:p.roadKm,margin:p.margin,history:hist};if(PFIT||old.fit)o.fit=PFIT?PFIT.sum:old.fit;return o;}
+function savePace(){if(APP){appPost({type:"ce-pace",pace:hpPace(PACE)});toast("앱에 내 페이스를 저장했어요");return Promise.resolve();}
+  if(!TOKEN){toast("저장소 탭에서 토큰을 먼저 넣으세요");return Promise.resolve();}
+  var o=paceObj();return gh("GET",PACE_PATH).then(function(r){return ghPutJson(PACE_PATH,o,"코스 편집기: 내 페이스",r.ok&&r.j?r.j.sha:null);}).then(function(sha){PACE_FILE=o;PACE_SHA=sha;toast("내 페이스를 저장소에 저장했어요 · 앱은 다음 동기화 때 받아요",6000);renderPanels();})
+    .catch(function(e){toast("저장 실패: "+e.message,7000);});}
+// ---- 기록(GPS)으로 내 페이스 다시 맞추기 ----
+// 기록 gps.pts [[lat,lon,ele,tMs]] → 5m 넘게 움직인 점만 [lat,lon,tMs,km]
+function paceTrack(pts){var out=[];pts.forEach(function(p){if(!isFinite(p[0])||!isFinite(p[1])||!isFinite(p[3]))return;if(!out.length){out.push([p[0],p[1],p[3],0]);return;}var L=out[out.length-1],d=hav(L,p);if(d>=5)out.push([p[0],p[1],p[3],L[3]+d/1000]);});
+  if(out.length)out[out.length-1][2]=Math.max(out[out.length-1][2],pts[pts.length-1][3]||0);return out;}
+function paceSamples(P){var out=[],nx=0;P.forEach(function(p){if(p[3]>=nx){out.push([p[0],p[1],p[3]]);nx=p[3]+0.1;}});var L=P[P.length-1];out.push([L[0],L[1],L[3]]);return out;}
+// 25m 안에 3분 넘게 머문 곳 → [km, 분]
+function paceRests(P){var out=[],i=0;while(i<P.length){var j=i;while(j+1<P.length&&hav(P[i],P[j+1])<25)j++;var dt=(P[j][2]-P[i][2])/60000;
+    if(j+1<P.length&&hav(P[i],P[j+1])<40)dt=Math.max(dt,(P[j+1][2]-P[i][2])/60000);if(dt>=3){out.push([P[i][3],dt]);i=j+1;}else i++;}return out;}
+// 0.5km 구간별 {km,up,dn,t(긴 휴식 10분 이상 제외),road}
+function paceSegs(P,S,E){var K=S.map(function(s){return s[2];}),R=paceRests(P),segs=[],L=P[P.length-1][3];
+  function at(arr,key,k,val){for(var i=1;i<arr.length;i++){if(key(arr[i])>=k){var a=key(arr[i-1]),b=key(arr[i]),f=b>a?(k-a)/(b-a):0;return val(i-1)+f*(val(i)-val(i-1));}}return val(arr.length-1);}
+  function tAt(k){return at(P,function(p){return p[3];},k,function(i){return P[i][2];});}
+  function eAt(k){return at(S,function(s){return s[2];},k,function(i){return E[i];});}
+  for(var a=0;a+0.5<=L+1e-9;a+=0.5){var b=a+0.5,es=[eAt(a)];K.forEach(function(k,i){if(k>a&&k<b)es.push(E[i]);});es.push(eAt(b));var cl=hpClimb(es),el=(tAt(b)-tAt(a))/60000,lr=0;
+    R.forEach(function(r){if(r[0]>=a&&r[0]<b&&r[1]>=10)lr+=r[1];});var t=el-lr,grade=(cl.up+cl.dn)/500;
+    segs.push({km:0.5,up:cl.up,dn:cl.dn,t:t,road:grade<0.04&&0.5/Math.max(t,1)*60>3.6});}
+  return segs;}
+// 가중 최소제곱 (음수 없음): t = a·km + b·up/100 + c·dn/100
+function paceSolve(rows){function fit(cols){var n=cols.length,A=[],B=[],i,j,q;for(i=0;i<n;i++){A.push(new Array(n).fill(0));B.push(0);}
+    rows.forEach(function(r){var x=[r.km,r.up/100,r.dn/100],w=r.w||1;for(i=0;i<n;i++){B[i]+=w*x[cols[i]]*r.t;for(j=0;j<n;j++)A[i][j]+=w*x[cols[i]]*x[cols[j]];}});
+    for(i=0;i<n;i++){var p=i;for(q=i+1;q<n;q++)if(Math.abs(A[q][i])>Math.abs(A[p][i]))p=q;var tA=A[i];A[i]=A[p];A[p]=tA;var tB=B[i];B[i]=B[p];B[p]=tB;if(Math.abs(A[i][i])<1e-12)return null;
+      for(q=i+1;q<n;q++){var f=A[q][i]/A[i][i];B[q]-=f*B[i];for(j=i;j<n;j++)A[q][j]-=f*A[i][j];}}
+    var x=new Array(n).fill(0);for(i=n-1;i>=0;i--){var s=B[i];for(j=i+1;j<n;j++)s-=A[i][j]*x[j];x[i]=s/A[i][i];}return x;}
+  var cols=[0,1,2],x;for(;;){x=fit(cols);if(!x)return null;var neg=cols.filter(function(c,i){return x[i]<0;});if(!neg.length)break;cols=cols.filter(function(c){return neg.indexOf(c)<0;});if(!cols.length)return null;}
+  var out=[0,0,0];cols.forEach(function(c,i){out[c]=x[i];});return out;}
+// recs: [{name,date,segs}] (최신순) → {perKm,up,dn,n,rmse,recs:[{name,date,ratio(실제÷지금 계획)}],road}
+function paceFit(recs){var all=[];recs.forEach(function(r,ri){var w=Math.pow(0.85,ri);r.segs.forEach(function(s){s.w=w;s.rec=ri;all.push(s);});});
+  var trail=all.filter(function(s){return !s.road;}),road=all.filter(function(s){return s.road;});if(trail.length<12)throw new Error("산길 구간이 너무 적어요 ("+trail.length+"개) · 기록이 더 쌓이면 다시 해보세요");
+  function pred(co,s){return co[0]*s.km+co[1]*s.up/100+co[2]*s.dn/100;}
+  var co=paceSolve(trail);if(!co)throw new Error("계산하지 못했어요");var res=trail.map(function(s){return s.t-pred(co,s);}),sd=Math.sqrt(res.reduce(function(a,b){return a+b*b;},0)/res.length);
+  var keep=trail.filter(function(s,i){return Math.abs(res[i])<=2.5*sd;});co=paceSolve(keep)||co;
+  var rmse=Math.sqrt(keep.reduce(function(a,s){var e=s.t-pred(co,s);return a+e*e;},0)/keep.length),cur=hpPace(PACE);
+  return {perKm:+co[0].toFixed(1),up:+co[1].toFixed(1),dn:+co[2].toFixed(1),n:keep.length,rmse:+rmse.toFixed(1),
+    road:road.length>=4?+(road.reduce(function(a,s){return a+s.t;},0)/road.reduce(function(a,s){return a+s.km;},0)).toFixed(1):null,
+    recs:recs.map(function(r,ri){var ss=all.filter(function(s){return s.rec===ri;}),act=0,plan=0;ss.forEach(function(s){act+=s.t;plan+=hpModelMin(s.km,s.up,s.dn,cur,s.road);});return {name:r.name,date:r.date,ratio:plan>0?+(act/plan).toFixed(2):null};})};}
+function fitFromRecs(){if(!RECS||!RECS.length){toast("기록 목록을 먼저 불러오세요");return Promise.resolve();}
+  var use=RECS.filter(function(r){return (r.sport||"hike")==="hike"&&r.json;}).slice(0,12),loaded=[];PMSG="기록 "+use.length+"개를 불러오는 중…";PFIT=null;renderRecs();
+  var seq=Promise.resolve();
+  use.forEach(function(r){seq=seq.then(function(){return ghRaw(r.json,RREPO).then(function(t){var j=JSON.parse(t),P=paceTrack((j.gps&&j.gps.pts)||[]);if(P.length>20&&P[P.length-1][3]>=2)loaded.push({name:r.name,date:r.date,P:P,S:paceSamples(P)});}).catch(function(){});});});
+  return seq.then(function(){if(!loaded.length)throw new Error("GPS가 있는 등산 기록이 없어요");PMSG="고도를 받는 중… (기록 "+loaded.length+"개)";renderRecs();var all=[];loaded.forEach(function(o){all=all.concat(o.S);});return fetchEle(all);})
+    .then(function(){loaded.forEach(function(o){o.E=o.S.map(function(p){return ELE[eleKey(p)];});o.ok=o.E.every(function(e){return e!=null;});if(o.ok)o.segs=paceSegs(o.P,o.S,o.E);});
+      var good=loaded.filter(function(o){return o.ok;}),f=paceFit(good);f.sum={at:Date.now(),records:good.length,segments:f.n,rmse:f.rmse,perKm:f.perKm,up:f.up,dn:f.dn,ele:ELE_SRC};PFIT=f;PMSG="";renderRecs();})
+    .catch(function(e){PMSG="다시 계산하지 못했어요: "+e.message;renderRecs();});}
+function pacePanel(p){var P0=hpPace(PACE);p.appendChild(h("h3",{text:"내 페이스 (고도 기준 시간 계산에 쓰는 숫자)"}));
+  function num(label,k,step){var e=h("input",{type:"number",step:step,min:"0",value:P0[k]});e.onchange=function(){var o=hpPace(PACE);o[k]=e.value;setPace(o);};return h("label",{cls:"f"},[label,e]);}
+  p.appendChild(h("div",{cls:"g3"},[num("1km당 (분)","perKm","0.1"),num("오르막 100m당 (분)","up","0.1"),num("내리막 100m당 (분)","dn","0.1")]));
+  p.appendChild(h("div",{cls:"g2"},[num("도로 1km당 최소 (분)","roadKm","0.1"),num("마진 (%)","margin","1")]));
+  p.appendChild(h("p",{cls:"msg",text:"구간 시간 = ("+P0.perKm+"분×km + "+P0.up+"분×오르막/100m + "+P0.dn+"분×내리막/100m) × "+(1+P0.margin/100).toFixed(2)+" · 공식 시간이 없는 코스에 써요."+(PACE_FILE&&PACE_FILE.updatedAt?" (저장소 값: "+new Date(PACE_FILE.updatedAt).toLocaleDateString("ko-KR")+")":"")}));
+  p.appendChild(h("div",{cls:"row"},[h("button",{cls:"pri",text:APP?"앱에 저장":"저장소에 저장",onclick:savePace}),!APP?h("button",{text:"기록으로 다시 계산",title:"기록 저장소의 최근 등산 기록(최대 12개) GPS와 지도 고도로 숫자를 다시 맞춰요",onclick:fitFromRecs}):null,
+    h("button",{text:"기본값",onclick:function(){setPace(null);}})]));
+  if(PMSG)p.appendChild(h("p",{cls:/못/.test(PMSG)?"msg err":"msg",text:PMSG}));
+  if(PFIT){var f=PFIT,box=h("div",{cls:"box"});
+    box.appendChild(h("p",{cls:"msg",style:"font-weight:700",text:"제안: 1km당 "+f.perKm+"분 · 오르막 100m당 "+f.up+"분 · 내리막 100m당 "+f.dn+"분"}));
+    box.appendChild(h("p",{cls:"msg",text:"기록 "+f.recs.length+"개 · 산길 0.5km 구간 "+f.n+"개 · 구간 오차 ±"+f.rmse+"분 · 고도 "+eleSrcName()+" · 3~9분 짧은 휴식은 포함, 10분 넘는 휴식은 제외(계획 휴식으로 따로 넣는 시간)"+(f.road?" · 도로·평지 실제 1km당 "+f.road+"분":"")}));
+    f.recs.forEach(function(r){box.appendChild(h("p",{cls:"msg",text:r.date+" "+r.name+": 실제 ÷ 지금 계획(마진 포함) = "+(r.ratio==null?"–":r.ratio)+(r.ratio==null?"":r.ratio>1.03?" → 계획보다 느렸음":r.ratio<0.97?" → 계획보다 빨랐음":" → 계획과 비슷")}));});
+    var rs=f.recs.map(function(r){return r.ratio;}).filter(function(x){return x!=null;}),m=hpPace(PACE).margin,adv="";
+    if(rs.length>=3&&rs.slice(0,3).every(function(x){return x<0.87;})&&m>10)adv="최근 기록 3개가 모두 계획보다 13% 넘게 빨랐어요 → 마진을 10%로 내려도 돼요.";
+    else if(rs.length&&rs.reduce(function(a,b){return a+b;},0)/rs.length>1.0)adv="지금 숫자로는 계획이 실제보다 빠르게 잡혀요(여유 없음) → 제안을 적용하는 걸 권해요.";
+    if(adv)box.appendChild(h("p",{cls:"msg",style:"color:#b45309",text:adv}));
+    box.appendChild(h("div",{cls:"row"},[h("button",{cls:"pri",text:"제안 적용",onclick:function(){var o=hpPace(PACE);o.perKm=f.perKm;o.up=f.up;o.dn=f.dn;setPace(o);toast("제안을 넣었어요 · '저장소에 저장'을 눌러야 앱에도 반영돼요",6000);}}),h("button",{text:"닫기",onclick:function(){PFIT=null;renderRecs();}})]));
+    p.appendChild(box);}}
+
 // ============ 패널 ============
 function showTab(t){[].forEach.call(document.querySelectorAll("#tabs button"),function(b){b.classList.toggle("on",b.dataset.t===t);});
   [].forEach.call(document.querySelectorAll(".panel"),function(p){p.classList.toggle("on",p.id==="p-"+t);});}
@@ -645,6 +774,9 @@ function renderCourse(){var p=$("p-course");p.textContent="";
   p.appendChild(h("div",{cls:"g2"},[inp("산 (목록 묶음)",(META.extra||{}).group||"",setX("group"),{placeholder:"비우면 '"+crsGroupE({name:META.name})+"'"}),inp("코스 묶음 이름 (대안끼리)",(META.extra||{}).family||"",setX("family"),{placeholder:"예: 13성문 종주"})]));
   var ac=h("input",{type:"checkbox",style:"width:auto"});ac.checked=!!(META.extra||{}).archived;ac.onchange=function(){push();if(!META.extra)META.extra={};META.extra.archived=ac.checked;};
   p.appendChild(h("label",{style:"display:flex;gap:6px;align-items:center"},[ac,"보관 (앱 목록 맨 아래 보관함으로)"]));
+  p.appendChild(inp("⚠ 확인 필요 (출입 통제·공식 탐방로 여부 등 · 비우면 표시 안 함)",(META.extra||{}).check||"",setX("check"),{placeholder:"예: 국립공원 구역 · 공식 탐방로인지 사무소에 확인"}));
+  var ob=h("input",{type:"checkbox",style:"width:auto"});ob.checked=isOfficial();ob.onchange=function(){push();if(!META.extra)META.extra={};META.extra.planBy=ob.checked?"official":"model";renderPanels();};
+  p.appendChild(h("label",{style:"display:flex;gap:6px;align-items:center"},[ob,"공식 시간·기록 기준 코스 (경로를 고쳐도 시각은 자동으로 다시 계산하지 않음 · 끄면 고도 모델 코스)"]));
   p.appendChild(h("label",{cls:"f"},["코스 id (같은 id로 올리면 앱의 같은 코스가 바뀌어요)",h("input",{value:META.id,readonly:true})]));
   altPanel(p);
   if(APP){var sa=netSavedAt();p.appendChild(h("h3",{text:"오프라인 준비"}));p.appendChild(h("p",{cls:"msg",text:"산에서 신호가 없어도 '등산로에 맞추기'를 쓰려면 미리 받아 두세요."+(sa?" (저장됨: "+sa+")":"")}));
@@ -653,7 +785,14 @@ function renderCourse(){var p=$("p-course");p.textContent="";
   p.appendChild(h("div",{cls:"row"},[h("button",{cls:"pri",text:"전체 실제 등산로에 맞추기",onclick:alignAll}),h("button",{text:"등산로 데이터 보기",title:"오픈스트리트맵 길(초록)과 출입 금지·비공식 길(검은 점선)을 지도에 표시",onclick:showNet}),h("button",{text:"지도 맞추기",onclick:fitAll})]));
   p.appendChild(h("p",{cls:"msg",text:"오픈스트리트맵 등산로·도로를 따라 지점 사이를 다시 그려요. '고정' 구간과 거리가 크게 다른 구간은 그대로 둬요."}));
   p.appendChild(h("div",{cls:"row"},[h("button",{text:"경로 길이로 km 바꾸기",onclick:function(){kmFromRoute(false);}}),h("button",{text:"총 거리 유지하고 km 나누기",onclick:function(){kmFromRoute(true);}})]));
-  p.appendChild(h("h3",{text:"계획 시각 다시 계산"}));
+  p.appendChild(h("h3",{text:"고도 기준 시간 계산 (내 페이스)"}));
+  var mst=h("input",{type:"time",value:normT(CP[0].arrive)||"09:00"}),mkm=h("input",{type:"checkbox",style:"width:auto"});mkm.checked=true;
+  p.appendChild(h("p",{cls:"msg",text:hpPaceTxt(PACE)+" · 고정(도로) 구간은 1km당 "+hpPace(PACE).roadKm+"분보다 빠르게 잡지 않아요. 쉬는 시간·컷오프·마감은 그대로 둬요. 숫자는 기록 탭 '내 페이스'에서 바꿔요."}));
+  p.appendChild(h("div",{cls:"g2"},[h("label",{cls:"f"},["출발",mst]),h("label",{style:"display:flex;gap:6px;align-items:center;align-self:end"},[mkm,"km도 경로 길이로 바꿈"])]));
+  p.appendChild(h("div",{cls:"row"},[h("button",{cls:"pri",text:"고도로 시각 다시 계산",onclick:function(){if(isOfficial()&&!confirm("공식 시간·기록 기준 코스예요(고도 모델 코스가 아님). 내 페이스 식으로 시각을 전부 다시 계산할까요?"))return;recalcModel({km:mkm.checked,times:true,start:mst.value});}}),
+    h("button",{text:"km·오름/내림만",title:"시각은 그대로 두고 지점 km와 구간별 오름/내림만 다시 계산",onclick:function(){recalcModel({km:mkm.checked,times:false});}})]));
+  if(routeChanged())p.appendChild(h("p",{cls:"msg",style:"color:#b45309",text:"경로가 바뀌었어요. 위 버튼으로 다시 계산하거나, 저장할 때 물어봐요."}));
+  p.appendChild(h("h3",{text:"시속 하나로 채우기 (고도 무시)"}));
   var st=h("input",{type:"time",value:CP[0].arrive||"08:00"}),sp=h("input",{type:"number",step:"0.1",min:"0.5",value:"2.5"}),ac=h("input",{type:"number",step:"1",min:"0",value:"0"});
   p.appendChild(h("div",{cls:"g3"},[h("label",{cls:"f"},["출발",st]),h("label",{cls:"f"},["시속(km)",sp]),h("label",{cls:"f"},["지점 휴식(분)",ac])]));
   p.appendChild(speedBar());
@@ -738,6 +877,36 @@ function hpKmh(km,min){return min>0&&km>0?(km/min*60).toFixed(1):"";}
 function hpDur(m){m=Math.round(Math.abs(m||0));return m>=60?Math.floor(m/60)+"시간 "+(m%60)+"분":m+"분";}
 // 두 시각("HH:MM") 사이 분 · 자정 넘김 처리 · 안 되면 null
 function hpSpanMin(a,b){function t(s){var m=/^(\d{1,2}):(\d{2})/.exec(s||"");return m?+m[1]*60+ +m[2]:null;}var x=t(a),y=t(b);if(x==null||y==null)return null;var d=y-x;return d<0?d+1440:d;}
+// ===== 내 페이스 (고도 기준 시간 계산) — v7.8 =====
+// 구간 시간(분) = (perKm×거리km + up×오르막/100m + dn×내리막/100m) × (1 + margin%) · 도로(고정 구간)는 1km당 roadKm분보다 빠르게 잡지 않는다
+var HP_PACE_DEF={perKm:11,up:10.6,dn:3.8,roadKm:12.6,margin:15};
+function hpPace(p){var o={},d=HP_PACE_DEF;for(var k in d){var v=p==null?NaN:+p[k];o[k]=p!=null&&p[k]!=null&&p[k]!==""&&isFinite(v)&&v>=0&&(v>0||k==="dn"||k==="margin")?v:d[k];}return o;}
+function hpModelMin(km,up,dn,pace,road){var p=hpPace(pace),t=p.perKm*km+p.up*(up||0)/100+p.dn*(dn||0)/100;if(road)t=Math.max(t,p.roadKm*km);return t*(1+p.margin/100);}
+function hpPaceTxt(pace){var p=hpPace(pace);return "1km당 "+p.perKm+"분 + 오르막 100m당 "+p.up+"분 + 내리막 100m당 "+p.dn+"분 · 마진 "+p.margin+"%";}
+// 고도 목록(경로를 따라 같은 간격) → 오르막·내리막 합(m)
+function hpClimb(el){var up=0,dn=0,prev=null;(el||[]).forEach(function(e){if(e==null||!isFinite(e))return;if(prev!=null){var d=e-prev;if(d>0)up+=d;else dn-=d;}prev=+e;});return {up:up,dn:dn};}
+// 계획 표: 지점 목록 [{n,km,a,d,up,dn}] (a 도착·d 출발 "HH:MM") → 구간별 줄과 합계
+// rows[i]: {from,to,km,up,dn,min(이동),kmh,rest(도착 지점에서 쉬는 분),arrive} · move/rest/total(분) · km · kmh(쉬는 시간 포함 전체 평균) · kmhMove
+function hpPlan(cps){var rows=[],move=0,rest=0,up=0,dn=0,hasEle=false;
+  for(var i=1;i<cps.length;i++){var a=cps[i-1],b=cps[i],m=hpSpanMin(a.d||a.a,b.a),r=b.d&&i<cps.length-1?hpSpanMin(b.a,b.d):0,km=b.km-a.km;
+    if(m==null)m=0;if(r==null||r>600)r=0;if(b.up!=null||b.dn!=null)hasEle=true;
+    rows.push({from:a.n,to:b.n,km:km,up:b.up==null?null:+b.up,dn:b.dn==null?null:+b.dn,min:m,kmh:hpKmh(km,m),rest:r,arrive:b.a});move+=m;rest+=r;up+=+b.up||0;dn+=+b.dn||0;}
+  var km=cps.length?cps[cps.length-1].km-cps[0].km:0,total=move+rest;
+  return {rows:rows,move:move,rest:rest,total:total,km:km,up:hasEle?up:null,dn:hasEle?dn:null,kmh:hpKmh(km,total),kmhMove:hpKmh(km,move),
+    rests:rows.filter(function(r){return r.rest>0;}).map(function(r){return {n:r.to,min:r.rest};})};}
+// "이동 4:43 + 휴식 0:30 = 총 5:13 · 전체 평균 2.1km/h (휴식 포함)"
+function hpHM(m){m=Math.round(m||0);return Math.floor(m/60)+":"+("0"+(m%60)).slice(-2);}
+function hpPlanLine(pl){return "이동 "+hpHM(pl.move)+" + 휴식 "+hpHM(pl.rest)+" = 총 "+hpHM(pl.total)+(pl.kmh?" · 전체 평균 "+pl.kmh+"km/h (휴식 포함)":"");}
+// 해 뜨는·지는 시각 (기기 시간대 기준 분, 오차 ±2분쯤) · date: "YYYY-MM-DD" 또는 Date
+function hpSun(lat,lon,date){var d=date instanceof Date?date:new Date((date||"")+"T12:00:00");if(isNaN(d))d=new Date();
+  var n=Math.floor((Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())-Date.UTC(d.getFullYear(),0,0))/86400000),r=Math.PI/180;
+  var B=2*Math.PI*(n-81)/364,eot=9.87*Math.sin(2*B)-7.53*Math.cos(B)-1.5*Math.sin(B),dec=23.44*r*Math.sin(2*Math.PI*(284+n)/365);
+  var ch=(Math.cos(90.833*r)-Math.sin(lat*r)*Math.sin(dec))/(Math.cos(lat*r)*Math.cos(dec));if(ch>1||ch<-1)return null;
+  var ha=Math.acos(ch)/r,noon=720-4*lon-eot,tz=-new Date(d.getFullYear(),d.getMonth(),d.getDate(),12).getTimezoneOffset();
+  return {rise:noon-4*ha+tz,set:noon+4*ha+tz};}
+// 산불조심기간 (봄 2/1~5/15 · 가을 11/1~12/15): 국립공원·일부 산은 탐방로를 통제할 수 있다. date "YYYY-MM-DD" (없으면 오늘)
+function hpFireSeason(date){var d=date?new Date(date+"T12:00:00"):new Date();if(isNaN(d))d=new Date();var k=(d.getMonth()+1)*100+d.getDate();
+  return k>=201&&k<=515?"봄철 산불조심기간(2/1~5/15)":k>=1101&&k<=1215?"가을철 산불조심기간(11/1~12/15)":"";}
 // </hp-common>
 var crsGroupE=hpGroup,shortE=hpShort,famsE=hpFamilies,famTitleE=hpFamTitle;
 function indexEntry(o,path,by){return {id:o.id,name:o.name,updatedAt:o.updatedAt,path:path,km:o.checkpoints.length?o.checkpoints[o.checkpoints.length-1].km:0,by:by,
@@ -747,11 +916,12 @@ function renderCps(){var p=$("p-cps");p.textContent="";if(!META){p.appendChild(h
   p.appendChild(h("p",{cls:"msg",text:"지점 표시를 끌어서 옮겨요. 선택한 지점의 빨간 손잡이를 끌면 도착 인정 반경이 바뀌어요. 봉우리(정상)로 표시한 지점은 반경이 빨간 원으로 보여요."}));
   p.appendChild(h("p",{cls:"msg",text:"지점을 고르면 '예상 속도'(앞 지점 출발 → 이 지점 도착)를 바꿀 수 있어요. 바꾸면 도착 시각이 다시 계산되고 뒤 지점도 같이 밀리거나 당겨져요(쉬는 시간 유지, 컷오프·마감은 그대로)."}));
   var sp0=planSpanE();if(sp0)p.appendChild(h("p",{cls:"msg",style:"font-weight:700",text:sp0}));
+  if(CP.length>1)p.appendChild(planTable());
   var en=estNotice();if(en)p.appendChild(en);p.appendChild(speedBar());var wb=warnBox();if(wb)p.appendChild(wb);
   var box=h("div",{cls:"list"});
   CP.forEach(function(c,i){var on=sel.t==="cp"&&sel.i===i;
     box.appendChild(h("button",{cls:"it"+(on?" on":""),onclick:function(){if(on){sel={t:null,i:-1};drawAll();renderPanels();return;}select("cp",i);var q=cpLL(i);if(q)map.panTo(q);}},[h("span",{cls:"n"+(c.peak?" pk":""),text:String(i+1)}),
-      h("span",null,[h("b",{text:c.name}),h("small",{text:(+c.km).toFixed(2)+"km · "+(c.arrive||"--:--")+(c.depart?"~"+c.depart:"")+(segKmh(i)?" · 예상 "+segKmh(i)+"km/h":"")+(c.cutoff?" · 컷오프 "+c.cutoff:"")})]),h("span",{cls:"r",text:Math.round((+c.radiusKm||0.15)*1000)+"m"+(c.lat==null?" · 좌표 없음":"")})]));
+      h("span",null,[h("b",{text:c.name}),h("small",{text:(+c.km).toFixed(2)+"km · "+(c.arrive||"--:--")+(c.depart?"~"+c.depart:"")+(segKmh(i)?" · 예상 "+segKmh(i)+"km/h":"")+(i&&c.up!=null?" · +"+Math.round(c.up)+"/−"+Math.round(c.dn||0)+"m":"")+(c.cutoff?" · 컷오프 "+c.cutoff:"")})]),h("span",{cls:"r",text:Math.round((+c.radiusKm||0.15)*1000)+"m"+(c.lat==null?" · 좌표 없음":"")})]));
     if(on)box.appendChild(cpForm(i));});
   p.appendChild(box);}
 function cpForm(i){var c=CP[i],f=h("div",{cls:"box"});
@@ -812,13 +982,14 @@ function connect(){REPO_MSG="불러오는 중…";renderRepo();
   return Promise.all([ghGetJson(CS_DIR+"index.json"),gh("GET","courses"),ghGetJson(CAT_PATH)]).then(function(res){
     var idx=res[0].missing?[]:(res[0].data.courses||[]);var files=res[1].ok&&Array.isArray(res[1].j)?res[1].j.filter(function(f){return /\.json$/i.test(f.name);}):[];
     LIST={cloud:idx,files:files};if(!res[2].missing)setCatalog(res[2].data,res[2].sha);
-    if(!RECS)loadRecs();
+    if(!RECS)loadRecs();loadPace().then(function(){renderPanels();});
     REPO_MSG="연결됨 · 앱 코스 "+idx.length+"개 · 저장소 courses 폴더 "+files.length+"개"+(CAT?" · 산 목록 "+(CAT.updated||""):"");renderRepo();renderCourse();})
   .catch(function(e){REPO_MSG="연결 실패: "+e.message;renderRepo();});}
 function setCatalog(c,sha){CAT=c;CAT_SHA=sha;CAT_DIRTY={};drawTgts();renderCourse();}
 function openCloud(path,name){if(dirty&&!confirm("저장 안 한 변경이 있어요. 버리고 열까요?"))return;toast("불러오는 중…");
   ghGetJson(path).then(function(r){if(r.missing)throw new Error("파일이 없어요");dirty=false;loadCourse(r.data,"저장소: "+path);showTab("course");}).catch(function(e){toast(e.message,5000);});}
-function upload(){
+function upload(){if(!META)return;beforeSave().then(upload2,function(e){toast(e.message,8000);});}
+function upload2(){
   if(!META)return;var pr=problems();if(pr.e.length){toast("올릴 수 없어요: "+pr.e[0],6000);showTab("course");return;}
   if(!TOKEN){toast("저장소 탭에서 토큰을 먼저 넣으세요");showTab("repo");return;}
   if(pr.w.length&&!confirm("확인할 점이 있어요:\n- "+pr.w.join("\n- ")+"\n\n그래도 올릴까요?"))return;
@@ -908,7 +1079,7 @@ function toggleRec(r,quiet){
       o.layer=L.polyline(pts.map(function(p){return [p[0],p[1]];}),{color:o.color,weight:4,opacity:.65,interactive:true,bubblingMouseEvents:true}).bindTooltip(r.date+" "+r.name,{sticky:true});
       gRec.addLayer(o.layer);if(!META&&!quiet)map.fitBounds(o.layer.getBounds().pad(0.1));renderRecs();})
     .catch(function(e){o.loading=false;o.err=e.message;renderRecs();});}
-function renderRecs(){var p=$("p-recs");if(!p)return;p.textContent="";
+function renderRecs(){var p=$("p-recs");if(!p)return;p.textContent="";pacePanel(p);p.appendChild(h("h3",{text:"기록 겹쳐 보기"}));
   var ri=h("input",{value:RREPO});ri.onchange=function(){RREPO=ri.value.trim();ls("ce.rrepo",RREPO);};
   p.appendChild(h("label",{cls:"f"},["기록 저장소 (앱 설정 → 기록 보관(GitHub)의 저장소)",ri]));
   p.appendChild(h("div",{cls:"row"},[h("button",{cls:"pri",text:RECS?"다시 불러오기":"기록 목록 불러오기",onclick:loadRecs}),Object.keys(ROV).length?h("button",{text:"겹친 기록 모두 끄기",onclick:function(){Object.keys(ROV).forEach(function(id){if(ROV[id].layer)gRec.removeLayer(ROV[id].layer);});ROV={};renderRecs();}}):null]));
@@ -998,21 +1169,24 @@ function hereMove(i){needGps(function(p){if(p.acc>60&&!confirm("GPS 정확도가
 function hereAdd(){if(!META)return;needGps(function(p){var ll=[p.lat,p.lon],best=null;SEG.forEach(function(s,i){if(s.length<2)return;var r=nearestOn(s,ll,1);if(r&&(!best||r.d<best.d))best={i:i,d:r.d};});
   if(best&&best.d<300){splitAt(best.i,ll);var k=sel.i;if(CP[k]){CP[k].lat=r6(p.lat);CP[k].lon=r6(p.lon);moveCp(k,ll);}}else{var d0=cpLL(0)?hav(ll,cpLL(0)):1e9,d1=cpLL(CP.length-1)?hav(ll,cpLL(CP.length-1)):1e9;addCpEnd(ll,d0<d1);}
   map.panTo(ll);toast("지금 위치에 지점을 넣었어요 · 이름과 시각을 고치세요");});}
-function appSave(){if(!META)return;var pr=problems();if(pr.e.length){toast("저장할 수 없어요: "+pr.e[0],6000);return;}META.updatedAt=Date.now();appPost({type:"ce-save",course:toPublic()});}
+function appSave(){if(!META)return;beforeSave().then(appSave2,function(e){toast(e.message,8000);});}
+function appSave2(){if(!META)return;var pr=problems();if(pr.e.length){toast("저장할 수 없어요: "+pr.e[0],6000);return;}META.updatedAt=Date.now();appPost({type:"ce-save",course:toPublic()});}
 function appClose(){if(dirty&&!confirm("저장 안 한 변경이 있어요. 버리고 닫을까요?"))return;appPost({type:"ce-close"});}
 if(APP){document.body.classList.add("app");document.title="지도 편집";
   var tr=$("top").querySelector(".row");tr.insertBefore(h("button",{cls:"pri",text:"저장",onclick:appSave}),tr.firstChild);tr.insertBefore(h("button",{text:"닫기",onclick:appClose}),tr.firstChild);
   $("grab").onclick=function(){var b=document.body;if(b.classList.contains("sheetMin")){b.classList.remove("sheetMin");}else if(b.classList.contains("sheetMax")){b.classList.remove("sheetMax");b.classList.add("sheetMin");}else b.classList.add("sheetMax");setTimeout(function(){map.invalidateSize();},250);};
   $("locB").onclick=function(){GPS_CB=null;needGps(function(p){map.setView([p.lat,p.lon],Math.max(map.getZoom(),16));});};
   window.addEventListener("message",function(ev){var m=ev.data||{};
-    if(m.type==="ce-open"&&m.course){if(m.catalog){CAT={programs:m.catalog.programs||[],targets:m.catalog.targets||{}};CAT_DIRTY={};}dirty=false;loadCourse(m.course,"앱");if(m.me)setMe(m.me);showTab(m.tab||"cps");setTimeout(fitAll,150);}
+    if(m.type==="ce-open"&&m.course){if(m.pace)setPace(m.pace,true);if(m.catalog){CAT={programs:m.catalog.programs||[],targets:m.catalog.targets||{}};CAT_DIRTY={};}dirty=false;loadCourse(m.course,"앱");if(m.me)setMe(m.me);showTab(m.tab||"cps");setTimeout(fitAll,150);}
     else if(m.type==="ce-me"&&m.me){setMe(m.me);var f=GPS_CB;GPS_CB=null;if(f)f(m.me);}
     else if(m.type==="ce-saved"){lastSaved=new Date().toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"});setDirty(false);toast("앱 코스에 저장했어요");}});
   appPost({type:"ce-ready"});}
 window.__ce={openText:openText,state:function(){return {META:META,CP:CP,SEG:SEG,HOW:HOW,GPX:GPX,CAT:CAT,CAT_DIRTY:CAT_DIRTY,sel:sel,mode:mode};},toPublic:function(){return toPublic();},
   select:select,alignAll:alignAll,alignOne:alignOne,splitAt:splitAt,delCp:delCp,startDraw:startDraw,finishDraw:finishDraw,onMapClick:function(ll){onMapClick({latlng:L.latLng(ll[0],ll[1])});},
   gpxApplyAll:gpxApplyAll,kmFromRoute:kmFromRoute,upload:upload,uploadCatalog:uploadCatalog,connect:connect,undo:undo,redo:redo,openCloud:openCloud,
-  setRepo:function(r,t){REPO=r;TOKEN=t;},map:map};
+  setRepo:function(r,t){REPO=r;TOKEN=t;},map:map,
+  recalcModel:recalcModel,beforeSave:beforeSave,routeChanged:routeChanged,resample:resample,setEle:function(f){ELE={};ELE_SRC='';window.__eleFn=f;},pace:function(p){if(p!==undefined)setPace(p,true);return PACE;},
+  paceTrack:paceTrack,paceSamples:paceSamples,paceSegs:paceSegs,paceFit:paceFit,paceSolve:paceSolve,planCps:planCps,fetchEle:fetchEle,hpModelMin:hpModelMin,hpPlan:hpPlan,hm:hm};
 setLayer(LAYERS.hasOwnProperty(startLayer)?startLayer:"지형 (OpenTopoMap)");
 renderPanels();
 if(TOKEN)connect();
