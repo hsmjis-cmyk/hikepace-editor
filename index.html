@@ -625,13 +625,20 @@ function alignOne(i){ensureNet().then(function(net){var bk=snap(),r=alignSeg(i,n
 var PACE=hpPace((function(){try{return JSON.parse(ls("ce.pace")||"null");}catch(e){return null;}})()),PACE_PATH="cloud/pace.json",PACE_FILE=null,PACE_SHA=null,PFIT=null,PMSG="";
 var ELE={},ELE_SRC="",ROUTE_SIG=null;
 function eleKey(p){return (+p[0]).toFixed(5)+","+(+p[1]).toFixed(5);}
-function eleSrcName(){return ELE_SRC==="meteo"?"Open-Meteo 90m":ELE_SRC==="topo"?"SRTM 30m":"";}
+// Open-Meteo(90m)는 0.1km 간격 고도가 들쭉날쭉해 오르내림이 SRTM 30m보다 10~20% 많게 나온다.
+// 앞뒤 점과 0.3:1:0.3 으로 섞으면 SRTM 과 거의 같아진다(2026-11-12 코스 6개 51구간 비교: 보정 전 시간 +13%, 보정 후 −1~+1%). 양 끝 점은 그대로 둔다.
+function eleFix(el){if(ELE_SRC!=="meteo"||!el||el.length<3)return el;var out=[el[0]];
+  for(var i=1;i<el.length-1;i++){var a=el[i-1],b=el[i],c=el[i+1];out.push(a==null||b==null||c==null?b:(0.3*a+b+0.3*c)/1.6);}out.push(el[el.length-1]);return out;}
+function eleSrcName(){return ELE_SRC==="meteo"?"Open-Meteo 90m(보정)":ELE_SRC==="topo"?"SRTM 30m":"";}
 // 좌표 목록 → 고도(m). SRTM 30m(opentopodata)를 먼저 쓰고, 안 되면 Open-Meteo. 한 번 받은 좌표는 다시 받지 않는다.
 function fetchEle(pts){var need=[],seen={};pts.forEach(function(p){var k=eleKey(p);if(ELE[k]===undefined&&!seen[k]){seen[k]=1;need.push(k);}});
   var chunks=[];for(var i=0;i<need.length;i+=100)chunks.push(need.slice(i,i+100));
-  function js(u){return fetch(u).then(function(r){if(!r.ok)throw new Error("고도 서버 오류 "+r.status);return r.json();});}
+  function js(u){return fetch(u).then(function(r){if(!r.ok)throw new Error("고도 서버 오류 "+r.status+(r.status===429?" limit":""));return r.json();});}
   function topo(ks){return js("https://api.opentopodata.org/v1/srtm30m?locations="+ks.join("|")).then(function(j){if(!j.results||j.results.length!==ks.length)throw new Error("고도 응답 오류");return j.results.map(function(x){return x.elevation;});});}
-  function meteo(ks){return js("https://api.open-meteo.com/v1/elevation?latitude="+ks.map(function(k){return k.split(",")[0];}).join(",")+"&longitude="+ks.map(function(k){return k.split(",")[1];}).join(","))
+  // Open-Meteo 는 1분에 받을 수 있는 양이 정해져 있어 넘으면 1분 기다렸다 다시 (최대 2번)
+  function meteo(ks,n){return meteo1(ks).catch(function(e){if((n||0)>=2||!/429|limit/i.test(e.message))throw e;toast("고도 서버가 1분 쉬라고 해서 기다리는 중… ("+((n||0)+1)+"/2)",61000);
+    return new Promise(function(r){setTimeout(r,window.__eleWait==null?61000:window.__eleWait);}).then(function(){return meteo(ks,(n||0)+1);});});}
+  function meteo1(ks){return js("https://api.open-meteo.com/v1/elevation?latitude="+ks.map(function(k){return k.split(",")[0];}).join(",")+"&longitude="+ks.map(function(k){return k.split(",")[1];}).join(","))
     .then(function(j){if(!j.elevation||j.elevation.length!==ks.length)throw new Error("고도 응답 오류");return j.elevation;});}
   var seq=Promise.resolve();
   chunks.forEach(function(ks,ci){seq=seq.then(function(){var f=ELE_SRC==="meteo"?meteo(ks):topo(ks).catch(function(){ELE_SRC="meteo";return meteo(ks);});
@@ -656,7 +663,7 @@ function recalcModel(opts){if(!META)return Promise.resolve(false);opts=opts||{};
     var st=normT(opts.start||"")||normT(CP[0].arrive)||"09:00",t=hm(st),miss=0;
     if(opts.times){var r0=normT(CP[0].depart)&&normT(CP[0].arrive)?hm(CP[0].depart)-hm(CP[0].arrive):0;CP[0].arrive=fmt(t);if(r0>0){CP[0].depart=fmt(t+r0);t+=r0;}}
     for(var i=1;i<CP.length;i++){var c=CP[i],el=sam[i-1].map(function(p){return ELE[eleKey(p)];});if(!el.length||el.some(function(e){return e==null;}))miss++;
-      var cl=hpClimb(el);c.up=Math.round(cl.up);c.dn=Math.round(cl.dn);
+      var cl=hpClimb(eleFix(el));c.up=Math.round(cl.up);c.dn=Math.round(cl.dn);
       if(opts.times){var rest=normT(c.depart)&&normT(c.arrive)&&i<CP.length-1?Math.max(0,hm(c.depart)-hm(c.arrive)):0;
         t+=Math.max(1,Math.round(hpModelMin(c.km-CP[i-1].km,cl.up,cl.dn,PACE,CP[i-1].route==="fixed")));c.arrive=fmt(t);if(rest>0){c.depart=fmt(t+rest);t+=rest;}else c.depart="";}}
     if(!META.extra)META.extra={};
@@ -727,7 +734,7 @@ function fitFromRecs(){if(!RECS||!RECS.length){toast("기록 목록을 먼저 �
   var seq=Promise.resolve();
   use.forEach(function(r){seq=seq.then(function(){return ghRaw(r.json,RREPO).then(function(t){var j=JSON.parse(t),P=paceTrack((j.gps&&j.gps.pts)||[]);if(P.length>20&&P[P.length-1][3]>=2)loaded.push({name:r.name,date:r.date,P:P,S:paceSamples(P)});}).catch(function(){});});});
   return seq.then(function(){if(!loaded.length)throw new Error("GPS가 있는 등산 기록이 없어요");PMSG="고도를 받는 중… (기록 "+loaded.length+"개)";renderRecs();var all=[];loaded.forEach(function(o){all=all.concat(o.S);});return fetchEle(all);})
-    .then(function(){loaded.forEach(function(o){o.E=o.S.map(function(p){return ELE[eleKey(p)];});o.ok=o.E.every(function(e){return e!=null;});if(o.ok)o.segs=paceSegs(o.P,o.S,o.E);});
+    .then(function(){loaded.forEach(function(o){o.E=o.S.map(function(p){return ELE[eleKey(p)];});o.ok=o.E.every(function(e){return e!=null;});if(o.ok)o.E=eleFix(o.E);if(o.ok)o.segs=paceSegs(o.P,o.S,o.E);});
       var good=loaded.filter(function(o){return o.ok;}),f=paceFit(good);f.sum={at:Date.now(),records:good.length,segments:f.n,rmse:f.rmse,perKm:f.perKm,up:f.up,dn:f.dn,ele:ELE_SRC};PFIT=f;PMSG="";renderRecs();})
     .catch(function(e){PMSG="다시 계산하지 못했어요: "+e.message;renderRecs();});}
 function pacePanel(p){var P0=hpPace(PACE);p.appendChild(h("h3",{text:"내 페이스 (고도 기준 시간 계산에 쓰는 숫자)"}));
@@ -1185,7 +1192,7 @@ window.__ce={openText:openText,state:function(){return {META:META,CP:CP,SEG:SEG,
   select:select,alignAll:alignAll,alignOne:alignOne,splitAt:splitAt,delCp:delCp,startDraw:startDraw,finishDraw:finishDraw,onMapClick:function(ll){onMapClick({latlng:L.latLng(ll[0],ll[1])});},
   gpxApplyAll:gpxApplyAll,kmFromRoute:kmFromRoute,upload:upload,uploadCatalog:uploadCatalog,connect:connect,undo:undo,redo:redo,openCloud:openCloud,
   setRepo:function(r,t){REPO=r;TOKEN=t;},map:map,
-  recalcModel:recalcModel,beforeSave:beforeSave,routeChanged:routeChanged,resample:resample,setEle:function(f){ELE={};ELE_SRC='';window.__eleFn=f;},pace:function(p){if(p!==undefined)setPace(p,true);return PACE;},
+  recalcModel:recalcModel,beforeSave:beforeSave,routeChanged:routeChanged,resample:resample,setEle:function(f){ELE={};ELE_SRC='';window.__eleFn=f;},eleFix:eleFix,eleSrc:function(v){if(v!==undefined)ELE_SRC=v;return ELE_SRC;},pace:function(p){if(p!==undefined)setPace(p,true);return PACE;},
   paceTrack:paceTrack,paceSamples:paceSamples,paceSegs:paceSegs,paceFit:paceFit,paceSolve:paceSolve,planCps:planCps,fetchEle:fetchEle,hpModelMin:hpModelMin,hpPlan:hpPlan,hm:hm};
 setLayer(LAYERS.hasOwnProperty(startLayer)?startLayer:"지형 (OpenTopoMap)");
 renderPanels();
