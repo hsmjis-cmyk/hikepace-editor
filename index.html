@@ -55,7 +55,7 @@ h3{font-size:13px;margin:14px 0 6px;color:var(--muted)}
 #nmap{width:100%;height:100%}
 .nv #map.leaflet-container{background:transparent}
 #modebar{position:absolute;left:50%;top:10px;transform:translateX(-50%);z-index:1000;background:#18201b;color:#fff;border-radius:10px;padding:8px 12px;display:none;gap:8px;align-items:center;box-shadow:0 2px 10px rgba(0,0,0,.3);font-size:13px}
-#modebar button{padding:4px 10px;font-size:12px}
+#modebar button{padding:4px 10px;font-size:12px;white-space:nowrap}
 #ptbar{position:absolute;left:56px;top:10px;z-index:1000;background:#fff;border:1px solid var(--line);border-radius:10px;padding:6px;display:none;gap:4px;align-items:center;box-shadow:0 2px 8px rgba(0,0,0,.18);font-size:13px;flex-wrap:wrap;max-width:calc(100% - 70px)}
 #ptbar .t{font-weight:700;color:var(--muted);padding:0 4px;font-size:12px}#ptbar button{padding:4px 10px;font-size:12px}#ptbar select{width:auto;padding:4px 6px;font-size:12px}
 .vx.pick{background:var(--sel);transform:scale(1.4)}.vx.del{border-color:#d32f2f;cursor:pointer}
@@ -101,6 +101,17 @@ body.app #toast{bottom:auto;top:12px;max-width:92vw}
 #locB{position:absolute;right:10px;top:84px;z-index:1000;display:none;font-size:20px;width:44px;height:44px;padding:0;border-radius:10px;box-shadow:0 1px 5px rgba(0,0,0,.3)}
 body.app #locB{display:block}
 .ptab{border-collapse:collapse;font-size:12px;width:100%;margin:4px 0 8px}.ptab th,.ptab td{border-bottom:1px solid #e3e6e1;padding:4px 5px;text-align:right;white-space:nowrap}.ptab th{color:#667;font-weight:600}.ptab td.l,.ptab th:first-child{text-align:left;white-space:normal;word-break:keep-all}.ptab tr.sum td{font-weight:700;border-top:2px solid #cfd5cc}
+/* ===== 새 산행 만들기 ===== */
+.nwhd{display:flex;align-items:center;justify-content:space-between;gap:8px;background:#fff4e6;border:1px solid #f5c08a;border-radius:10px;padding:8px 10px;margin:4px 0 6px}.nwhd b{color:#c2410c;font-size:15px}
+#newB{background:#fff4e6;border-color:#f5c08a;color:#c2410c;font-weight:700}
+.nwp{position:relative;width:0;height:0}.nwp i{position:absolute;left:-5px;top:-5px;width:10px;height:10px;border-radius:50%;background:#475569;border:2px solid #fff;box-sizing:border-box;cursor:pointer;box-shadow:0 0 2px rgba(0,0,0,.5)}
+.nwp.pk i{background:#c2410c;width:12px;height:12px;left:-6px;top:-6px}
+.nwp b{position:absolute;left:9px;top:-9px;font-size:11px;font-weight:700;color:#334155;white-space:nowrap;text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 3px #fff;pointer-events:none}.nwp.pk b{color:#9a3412}
+.nwk{position:relative;width:0;height:0}.nwk i{position:absolute;left:-11px;top:-11px;width:22px;height:22px;border-radius:50%;background:#e8590c;color:#fff;font-style:normal;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-sizing:border-box;box-shadow:0 1px 4px rgba(0,0,0,.45)}
+.nwk.ct i{background:#b71c1c}.nwk b{position:absolute;left:14px;top:-10px;background:rgba(255,255,255,.95);border:1px solid #e8590c;border-radius:6px;padding:0 5px;font-size:11px;white-space:nowrap;font-weight:700;color:#9a3412;pointer-events:none}
+.nwrow{display:flex;align-items:center;gap:6px}.nwrow input{padding:4px 6px;font-size:13px;width:100%}.nwrow small{display:block}.nwrow .r{display:flex;gap:2px}
+body.app #newB{display:none}
+body.app #modebar{left:56px;right:8px;transform:none;flex-wrap:wrap;font-size:13px;padding:8px 10px}body.app #modebar>span{flex:1 1 160px;min-width:0}
 </style>
 </head>
 <body>
@@ -110,6 +121,7 @@ body.app #locB{display:block}
     <div id="top">
       <h1><span id="ttl">산행 페이스 코스 편집기</span><span class="row"><button class="sm" id="helpB" title="도움말">? 도움말</button><button class="sm" id="undoB" title="되돌리기 (Ctrl+Z)">↶</button><button class="sm" id="redoB" title="다시 (Ctrl+Y)">↷</button></span></h1>
       <div class="row">
+        <button id="newB" title="산 이름을 찾고 지도에서 지점을 찍어 새 코스 만들기">＋ 새 산행</button>
         <button id="openB">파일 열기</button>
         <button id="saveB">파일로 저장</button>
         <button class="pri" id="upB">앱에 올리기</button>
@@ -127,6 +139,7 @@ body.app #locB{display:block}
     <section class="panel" id="p-gpx"></section>
     <section class="panel" id="p-repo"></section>
     <section class="panel" id="p-help"></section>
+    <section class="panel" id="p-new"></section>
   </aside>
   <div id="mapWrap" style="position:relative;min-width:0"><div id="nbox"><div id="nmap"></div></div><div id="map"></div><div id="modebar"></div><div id="ptbar"></div><button id="locB" title="내 위치">◎</button></div>
 </div>
@@ -231,7 +244,7 @@ function problems(){var e=[],w=[];
 
 // ============ 코스 열기 ============
 function newId(){return "c"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);}
-function loadCourse(o,src){ALT_CACHE={};
+function loadCourse(o,src){ALT_CACHE={};if(NW){NW=null;gNew.clearLayers();setModebar(null);}
   if(!o||!Array.isArray(o.checkpoints)||o.checkpoints.length<2)throw new Error("코스 파일(hikepace-course) 형식이 아니에요");
   var extra={};for(var k in o){if(["format","version","id","updatedAt","name","sport","date","endTime","endLabel","notes","checkpoints","track"].indexOf(k)<0)extra[k]=o[k];}
   META={id:String(o.id||newId()),updatedAt:+o.updatedAt||0,name:String(o.name||"새 코스"),sport:o.sport||"hike",date:o.date||"",endTime:o.endTime||"",endLabel:o.endLabel||"",notes:o.notes||"",extra:extra,src:src||""};
@@ -278,6 +291,13 @@ function newFromGpx(g){
 function courseBox(pad){var b=null;function ext(p){if(!b)b=[p[0],p[1],p[0],p[1]];else{b[0]=Math.min(b[0],p[0]);b[1]=Math.min(b[1],p[1]);b[2]=Math.max(b[2],p[0]);b[3]=Math.max(b[3],p[1]);}}
   SEG.forEach(function(s){s.forEach(ext);});CP.forEach(function(c,i){var p=cpLL(i);if(p)ext(p);});if(!b&&GPX)GPX.pts.forEach(ext);if(!b)return null;pad=pad||0.012;return [b[0]-pad,b[1]-pad,b[2]+pad,b[3]+pad];}
 function inBox(b,p){return b&&p&&p[0]>=b[0]&&p[0]<=b[2]&&p[1]>=b[1]&&p[1]<=b[3];}
+// 오픈스트리트맵(Overpass) 서버: 첫 서버가 안 되면 다음 서버로 (2026-11 overpass-api.de 502·406 오류가 잦음)
+var OVP=["https://overpass-api.de/api/interpreter","https://overpass.kumi.systems/api/interpreter","https://maps.mail.ru/osm/tools/overpass/api/interpreter","https://overpass.private.coffee/api/interpreter"];
+function overpass(q){var i=0,last=null;function one(){if(i>=OVP.length)return Promise.reject(last||new Error("오픈스트리트맵 서버에 연결하지 못했어요"));var u=OVP[i++];
+  return fetch(u,{method:"POST",body:"data="+encodeURIComponent(q),headers:{"Content-Type":"application/x-www-form-urlencoded"}}).then(function(r){if(!r.ok)throw new Error("등산로 서버 오류 "+r.status+" (잠시 뒤 다시)");return r.json();})
+    .catch(function(e){last=e;return one();});}return one();}
+// 산길 우선 길찾기: 산길(path·footway·track·steps·bridleway)이 아닌 길(도로)은 4배 먼 길로 친다
+function osmFactor(t){return /^(path|footway|track|steps|bridleway)$/.test((t||{}).highway||"")?1:4;}
 function ensureNet(extraPts){
   var b=courseBox(0.012);if(extraPts)extraPts.forEach(function(p){if(!b)b=[p[0]-0.012,p[1]-0.012,p[0]+0.012,p[1]+0.012];else{b[0]=Math.min(b[0],p[0]-0.012);b[1]=Math.min(b[1],p[1]-0.012);b[2]=Math.max(b[2],p[0]+0.012);b[3]=Math.max(b[3],p[1]+0.012);}});
   if(!b)return Promise.reject(new Error("범위를 알 수 없어요"));
@@ -285,30 +305,30 @@ function ensureNet(extraPts){
   if(NET_LOADING)return NET_LOADING;
   var q='[out:json][timeout:60];way["highway"~"^(path|footway|track|steps|bridleway|pedestrian|service|unclassified|residential|living_street|tertiary|secondary|primary)$"]('+b.map(function(x){return x.toFixed(5);}).join(",")+');out body qt;>;out skel qt;';
   toast("오픈스트리트맵 등산로를 받는 중…",8000);
-  NET_LOADING=fetch("https://overpass-api.de/api/interpreter",{method:"POST",body:"data="+encodeURIComponent(q),headers:{"Content-Type":"application/x-www-form-urlencoded"}})
-    .then(function(r){if(!r.ok)throw new Error("등산로 서버 오류 "+r.status+" (잠시 뒤 다시)");return r.json();}).then(function(j){
-      var idx={},c=[],e=[],ways=[];j.elements.forEach(function(x){if(x.type==="node"){idx[x.id]=c.length/2;c.push(x.lat,x.lon);}});
+  NET_LOADING=overpass(q).then(function(j){
+      var idx={},c=[],e=[],F=[],ways=[];j.elements.forEach(function(x){if(x.type==="node"){idx[x.id]=c.length/2;c.push(x.lat,x.lon);}});
       var bad=[];j.elements.forEach(function(x){if(x.type!=="way")return;var no=osmRestricted(x.tags),line=[];for(var k=0;k<x.nodes.length;k++){var a=idx[x.nodes[k]];if(a!=null)line.push([c[2*a],c[2*a+1]]);
-        if(k&&!no){var p=idx[x.nodes[k-1]],q2=idx[x.nodes[k]];if(p!=null&&q2!=null)e.push(p,q2,hav([c[2*p],c[2*p+1]],[c[2*q2],c[2*q2+1]]));}}if(line.length>1)(no?bad:ways).push(line);});
+        if(k&&!no){var p=idx[x.nodes[k-1]],q2=idx[x.nodes[k]];if(p!=null&&q2!=null){e.push(p,q2,hav([c[2*p],c[2*p+1]],[c[2*q2],c[2*q2+1]]));F.push(osmFactor(x.tags));}}}if(line.length>1)(no?bad:ways).push(line);});
       if(e.length<3)throw new Error("이 범위에 등산로 데이터가 없어요");
-      NET=buildNet(c,e);NET.ways=ways;NET.bad=bad;NET_BOX=b;NET_LOADING=null;drawNet();netSave(b,c,e,ways,bad);toast("등산로 "+ways.length+"개 받음"+(bad.length?" · 출입 금지·비공식 "+bad.length+"개는 검은 점선(맞추기에서 제외)":""));return NET;})
+      NET=buildNet(c,e,F);NET.ways=ways;NET.bad=bad;NET_BOX=b;NET_LOADING=null;drawNet();netSave(b,c,e,ways,bad,F);toast("등산로 "+ways.length+"개 받음"+(bad.length?" · 출입 금지·비공식 "+bad.length+"개는 검은 점선(맞추기에서 제외)":""));return NET;})
     .catch(function(err){NET_LOADING=null;var o=netLoad(b);if(o){toast("인터넷이 안 돼서 저장해 둔 등산로를 써요",5000);return o;}throw err;});
   return NET_LOADING;}
 // 등산로 오프라인 보관 (코스별, 이 기기 브라우저 저장소): 산에서 신호가 없어도 등산로 맞추기
 function netKey(){return "ce.net."+(META&&META.id||"x");}
-function netSave(b,c,e,ways,bad){try{localStorage.setItem(netKey(),JSON.stringify({b:b,c:Array.from(c),e:Array.from(e),w:ways.map(function(l){return l.map(function(p){return [+p[0].toFixed(5),+p[1].toFixed(5)];});}),bad:bad.map(function(l){return l.map(function(p){return [+p[0].toFixed(5),+p[1].toFixed(5)];});}),t:Date.now()}));}catch(x){}}
+function netSave(b,c,e,ways,bad,F){try{localStorage.setItem(netKey(),JSON.stringify({b:b,c:Array.from(c),e:Array.from(e),f:F||null,w:ways.map(function(l){return l.map(function(p){return [+p[0].toFixed(5),+p[1].toFixed(5)];});}),bad:bad.map(function(l){return l.map(function(p){return [+p[0].toFixed(5),+p[1].toFixed(5)];});}),t:Date.now()}));}catch(x){}}
 function netLoad(b){try{var o=JSON.parse(localStorage.getItem(netKey())||"null");if(!o)return null;var B=o.b;if(b&&!(b[0]>=B[0]-0.002&&b[1]>=B[1]-0.002&&b[2]<=B[2]+0.002&&b[3]<=B[3]+0.002))return null;
-  NET=buildNet(o.c,o.e);NET.ways=o.w||[];NET.bad=o.bad||[];NET_BOX=B;drawNet();return NET;}catch(x){return null;}}
+  NET=buildNet(o.c,o.e,o.f);NET.ways=o.w||[];NET.bad=o.bad||[];NET_BOX=B;drawNet();return NET;}catch(x){return null;}}
 function netSavedAt(){try{var o=JSON.parse(localStorage.getItem(netKey())||"null");return o&&o.t?new Date(o.t).toLocaleString("ko-KR"):"";}catch(x){return "";}}
 // 출입 금지·비공식 표시가 있는 길 (앱과 같은 규칙): 검은 점선으로만 보이고 등산로 맞추기·그리기에서 쓰지 않음
 function osmRestricted(t){t=t||{};return /^(no|private)$/.test(t.access||"")||/^(no|private)$/.test(t.foot||"")||t.informal==="yes";}
-function buildNet(c,E){var n=c.length/2,lat=new Float64Array(n),lon=new Float64Array(n),deg=new Int32Array(n+1),i;
+function buildNet(c,E,F){var n=c.length/2,lat=new Float64Array(n),lon=new Float64Array(n),deg=new Int32Array(n+1),i;
   for(i=0;i<n;i++){lat[i]=c[2*i];lon[i]=c[2*i+1];}
   for(i=0;i<E.length;i+=3){deg[E[i]+1]++;deg[E[i+1]+1]++;}for(i=0;i<n;i++)deg[i+1]+=deg[i];
-  var pos=deg.slice(),nb=new Int32Array(deg[n]),w=new Float32Array(deg[n]);
-  for(i=0;i<E.length;i+=3){var a=E[i],b=E[i+1];nb[pos[a]]=b;w[pos[a]++]=E[i+2];nb[pos[b]]=a;w[pos[b]++]=E[i+2];}
-  return {n:n,lat:lat,lon:lon,off:deg,nb:nb,w:w};}
-function netRoute(net,pa,pb){
+  var pos=deg.slice(),nb=new Int32Array(deg[n]),w=new Float32Array(deg[n]),w2=new Float32Array(deg[n]);
+  for(i=0;i<E.length;i+=3){var a=E[i],b=E[i+1],f=F&&F[i/3]?F[i/3]:1;nb[pos[a]]=b;w2[pos[a]]=E[i+2]*f;w[pos[a]++]=E[i+2];nb[pos[b]]=a;w2[pos[b]]=E[i+2]*f;w[pos[b]++]=E[i+2];}
+  return {n:n,lat:lat,lon:lon,off:deg,nb:nb,w:w,w2:w2};}
+// trail=true: 산길 우선(도로 4배) 가중치로 찾고, 거리(m)는 실제 길이
+function netRoute(net,pa,pb,trail){var W=trail&&net.w2?net.w2:net.w;
   var cosl=Math.cos(pa[0]*RAD),M=111320;
   function dm(i,p){var dy=(net.lat[i]-p[0])*M,dx=(net.lon[i]-p[1])*M*cosl;return Math.sqrt(dx*dx+dy*dy);}
   var radii=[60,150];
@@ -322,7 +342,7 @@ function netRoute(net,pa,pb){
     var best=Infinity,bi=-1;
     while(heap.length){var t=hpop(),d=t[0],u=t[1];if(d>dist[u]||d>=best)continue;
       if(B[u]!=null&&d+B[u]*1.2<best){best=d+B[u]*1.2;bi=u;}
-      for(var k=net.off[u];k<net.off[u+1];k++){var v=net.nb[k],nd=d+net.w[k];if(nd<dist[v]){dist[v]=nd;prev[v]=u;hpush(nd,v);}}}
+      for(var k=net.off[u];k<net.off[u+1];k++){var v=net.nb[k],nd=d+W[k];if(nd<dist[v]){dist[v]=nd;prev[v]=u;hpush(nd,v);}}}
     if(bi<0)continue;
     var path=[],u2=bi;while(u2>=0){path.push([net.lat[u2],net.lon[u2],null]);u2=prev[u2];}path.reverse();
     var pts=[[pa[0],pa[1],null]].concat(path,[[pb[0],pb[1],null]]);
@@ -514,9 +534,9 @@ function catTargets(){if(!CAT)return [];var inP={};(CAT.programs||[]).filter(pfO
     if(id===sel.i&&sel.t==="tgt")return true;for(var k=0;k<all.length;k+=3){if(hav(all[k],[t.lat,t.lon])<1500)return true;}return !all.length;}).slice(0,300).map(function(id){return {id:id,t:CAT.targets[id],progs:inP[id]};});}
 var TGT_EDIT=null; // 위치 편집을 켠 인증 지점만 끌어서 옮길 수 있음
 function drawTgts(){gTgt.clearLayers();if(TGT_EDIT&&!(sel.t==="tgt"&&sel.i===TGT_EDIT))TGT_EDIT=null;if(!SHOW.tgt)return;catTargets().forEach(function(x){var t=x.t,r=tgtCertM(t),on=sel.t==="tgt"&&sel.i===x.id,p=[t.lat,t.lon];
-  L.circle(p,{radius:r,color:"#b71c1c",weight:on?3:2,dashArray:"7 5",fillColor:"#e53935",fillOpacity:on?.28:.16}).on("click",function(ev){if(mode)return onMapClick(ev);L.DomEvent.stopPropagation(ev);if(ptModeClick(ev))return;select("tgt",x.id);}).addTo(gTgt);
+  L.circle(p,{radius:r,color:"#b71c1c",weight:on?3:2,dashArray:"7 5",fillColor:"#e53935",fillOpacity:on?.28:.16}).on("click",function(ev){if(NW&&NW.mt&&!mode){L.DomEvent.stopPropagation(ev);nwClick(p);return;}if(mode)return onMapClick(ev);L.DomEvent.stopPropagation(ev);if(ptModeClick(ev))return;select("tgt",x.id);}).addTo(gTgt);
   var tm=L.marker(p,{icon:L.divIcon({className:"",iconSize:[0,0],html:'<div class="tg'+(on?" on":"")+(TGT_EDIT===x.id?" ed":"")+'"><i></i><b>'+esc(t.n+(t.sub?" "+t.sub:""))+" · 인증 "+r+"m"+(CAT_DIRTY[x.id]?" ●":"")+'</b></div>'}),draggable:TGT_EDIT===x.id&&!ptMode(),zIndexOffset:on?1800:400,title:TGT_EDIT===x.id?"끌어서 인증 위치 옮기기":"선택 · 옮기려면 '위치 편집'을 켜세요"}).addTo(gTgt);
-  tm.on("click",function(ev){if(mode)return onMapClick(ev);if(ptModeClick(ev))return;select("tgt",x.id);});
+  tm.on("click",function(ev){if(NW&&NW.mt&&!mode){L.DomEvent.stopPropagation(ev);nwClick(p);return;}if(mode)return onMapClick(ev);if(ptModeClick(ev))return;select("tgt",x.id);});
   tm.on("dragstart",function(){tgtOrig(x.id);});
   tm.on("drag",function(ev){var ll=ev.target.getLatLng();t.lat=r6(ll.lat);t.lon=r6(ll.lng);CAT_DIRTY[x.id]=1;});
   tm.on("dragend",function(){sel={t:"tgt",i:x.id};drawTgts();renderPanels();showTab("course");toast("인증 위치를 옮겼어요 · '인증 지점 올리기'로 산 목록에 반영");});
@@ -563,7 +583,7 @@ function select(t,i){sel={t:t,i:i};drawAll();renderPanels();
   if(t==="cp")showTab("cps");else if(t==="seg")showTab("segs");else if(t==="tgt")showTab("course");
   setTimeout(function(){var e=document.querySelector(".it.on");if(e)e.scrollIntoView({block:"nearest"});},30);}
 map.on("moveend",function(){if(CAT&&!SEG.length){drawTgts();if($("p-course").classList.contains("on"))renderCourse();}});
-map.on("click",function(ev){if(mode)return onMapClick(ev);if(ptMode()){if(PM==="add")insertPoint([ev.latlng.lat,ev.latlng.lng]);return;}if(sel.t){sel={t:null,i:-1};drawAll();renderPanels();}});
+map.on("click",function(ev){if(mode)return onMapClick(ev);if(NW&&NW.mt){nwClick([ev.latlng.lat,ev.latlng.lng]);return;}if(ptMode()){if(PM==="add")insertPoint([ev.latlng.lat,ev.latlng.lng]);return;}if(sel.t){sel={t:null,i:-1};drawAll();renderPanels();}});
 
 // ============ 편집 동작 ============
 function splitAt(i,ll){ // 구간 i 위의 점에 새 지점 추가
@@ -764,11 +784,11 @@ function inp(label,val,on,attrs){var e=h("input",Object.assign({value:val==null?
 function cbx(label,val,on){var e=h("input",{type:"checkbox",checked:val});e.addEventListener("change",function(){on(e.checked);});return h("label",{cls:"chk"},[e,label]);}
 function renderPanels(){
   $("ttl").textContent=META?META.name:"산행 페이스 코스 편집기";document.title=(META?META.name+" · ":"")+"산행 페이스 코스 편집기";
-  renderCourse();renderCps();renderSegs();renderRecs();renderGpx();renderRepo();setDirty(dirty);}
+  renderCourse();renderCps();renderSegs();renderRecs();renderGpx();renderRepo();renderNew();setDirty(dirty);}
 function renderCourseStats(){if($("p-course").classList.contains("on"))renderCourse();setDirty(true);}
 function renderCourse(){var p=$("p-course");p.textContent="";
-  if(!META){p.appendChild(h("div",null,[h("p",{cls:"msg",html:"<b>시작하기</b><br>① <b>저장소</b> 탭에서 GitHub 토큰을 넣고 앱의 코스를 불러오거나<br>② <b>파일 열기</b>로 Claude가 만든 코스(.json)를 열거나<br>③ GPX 파일을 열면 그 경로로 새 코스를 만들어요.<br>파일을 지도 위로 끌어다 놓아도 돼요."}),
-    h("div",{cls:"row"},[h("button",{cls:"pri",text:"파일 열기",onclick:function(){$("fileIn").click();}}),h("button",{text:"? 도움말",onclick:function(){showHelp();}})])]));tgtPanel(p);legend(p);return;}
+  if(!META){p.appendChild(h("div",null,[h("p",{cls:"msg",html:"<b>시작하기</b><br>⓪ <b>＋ 새 산행</b>: 산 이름을 찾아 지도에서 지점을 찍으면 길·시간표까지 만들어요<br>① <b>저장소</b> 탭에서 GitHub 토큰을 넣고 앱의 코스를 불러오거나<br>② <b>파일 열기</b>로 Claude가 만든 코스(.json)를 열거나<br>③ GPX 파일을 열면 그 경로로 새 코스를 만들어요.<br>파일을 지도 위로 끌어다 놓아도 돼요."}),
+    h("div",{cls:"row"},[h("button",{cls:"pri",text:"＋ 새 산행 만들기",title:"산 이름을 찾고 지도에서 지점을 차례로 찍으면 길을 잇고 시간표까지 만들어요",onclick:function(){nwStart();}}),h("button",{text:"파일 열기",onclick:function(){$("fileIn").click();}}),h("button",{text:"? 도움말",onclick:function(){showHelp();}})])]));tgtPanel(p);legend(p);return;}
   var tot=0;SEG.forEach(function(s){tot+=lenM(s);});var n=exportTrack().length;
   p.appendChild(h("div",{cls:"stat"},[h("div",null,[h("b",{text:(CP[CP.length-1].km-CP[0].km).toFixed(1)+"km"}),h("small",{text:"계획 거리"})]),
     h("div",null,[h("b",{text:(tot/1000).toFixed(1)+"km"}),h("small",{text:"그린 경로"})]),h("div",null,[h("b",{text:CP.length+" / "+n}),h("small",{text:"지점 / 좌표"})])]));
@@ -1110,6 +1130,13 @@ gRec.addTo(map);gRec.bringToBack&&0;
 
 // ============ 도움말 ============
 var HELP=[
+ {t:"＋ 새 산행 만들기",d:"산 이름만 알면 지도에서 지점을 차례로 찍어 코스를 만들어요. 위쪽 '＋ 새 산행' 버튼(또는 시작하기의 '새 산행 만들기')으로 시작해요.",
+  h:["순서","하는 일","자동으로 되는 것"],rows:[
+  ["① 산 찾기","산 이름을 넣고 찾기","산 목록(100대 명산 등 인증 지점)에서 먼저, 없으면 오픈스트리트맵 봉우리 이름으로 찾아요. 못 찾으면 지도를 옮기고 '지금 지도 화면에서 시작'"],
+  ["② 지점 찍기","지도에서 출발점부터 차례로 누름","◆ 인증 지점(50m 안)이 가장 먼저, 그다음 ● 이름 있는 곳(봉우리·고개·바위·정류장 등) 이름이 들어가요. 길 위 아무 곳은 '지점 N'. 같은 곳을 다시 지나면 '(복귀)'"],
+  ["길 고르기","산길 우선 / 최단 거리","오픈스트리트맵 길로 이어요. 산길 우선은 도로를 4배 먼 길로 쳐서 되도록 산길로. 출입 금지·비공식 표시 길은 쓰지 않아요"],
+  ["③ 프로그램","경로 근처 인증 지점 확인","경로가 인증 반경 안을 지나면 ✓ (앱이 자동 인증). 반경 밖이면 '지점으로 넣기'로 경로에 넣어요"],
+  ["④ 만들기","코스 이름·출발 시각(기본 09:00)","실제 경로 km · 고도 오름/내림 · 내 페이스 식(마진 포함) 도착 시각 · 봉우리·인증 지점 휴식 10분 · 도착 반경 50m(길에서 50m 넘게 떨어진 정상·대피소 100m) · 확인 필요·메모. 이름 없는 지점은 고도로 '무명봉/안부 (NNNm)'"]]},
  {t:"점(경로가 꺾이는 곳) 편집 도구",d:"구간을 고르면 그 구간의 점이, 지점(예: 봉우리)을 고르면 앞뒤 두 구간의 점이 한꺼번에 나와요. 도구는 지도 왼쪽 위에 떠요.",
   h:["버튼","단축키","동작","쓰는 때"],rows:[
   ["이동","1","점을 끌어서 옮김. 점 사이의 작은 주황 점을 끌면 새 점이 생김","경로를 등산로·기록 선에 맞춰 다듬을 때"],
@@ -1152,7 +1179,7 @@ $("gpxIn").onchange=function(){var f=this.files[0];if(f)readFile(f,openText);thi
 $("saveB").onclick=function(){if(!META)return;var pr=problems();if(pr.e.length){toast("저장할 수 없어요: "+pr.e[0],6000);return;}META.updatedAt=Date.now();
   var s=JSON.stringify(toPublic(),null,1),a=h("a",{href:URL.createObjectURL(new Blob([s],{type:"application/json"})),download:META.name.replace(/[\\/:*?"<>|\s]+/g,"_")+".json"});document.body.appendChild(a);a.click();a.remove();
   lastSaved=new Date().toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"});setDirty(false);toast("파일로 저장했어요 · 휴대폰에서 '코스 가져오기'로 넣어도 돼요");};
-$("upB").onclick=upload;$("undoB").onclick=undo;$("redoB").onclick=redo;
+$("newB").onclick=function(){nwStart();};$("upB").onclick=upload;$("undoB").onclick=undo;$("redoB").onclick=redo;
 document.addEventListener("keydown",function(e){var tag=(e.target.tagName||"").toLowerCase(),typing=tag==="input"||tag==="textarea"||tag==="select";
   if(e.key==="Escape"&&mode){endMode();return;}if(e.key==="Escape"&&PM!=="move"){setPM("move");return;}
   if(typing)return;
@@ -1166,6 +1193,199 @@ window.addEventListener("dragenter",function(e){e.preventDefault();dc++;dz.style
 window.addEventListener("dragleave",function(e){dc--;if(dc<=0){dc=0;dz.style.display="none";}});
 window.addEventListener("dragover",function(e){e.preventDefault();});
 window.addEventListener("drop",function(e){e.preventDefault();dc=0;dz.style.display="none";var f=e.dataTransfer.files[0];if(f)readFile(f,openText);});
+
+// ============ 새 산행 만들기 (산 이름 → 지점 찍기 → 길 잇기 → 자동 계산) — v8.2 ============
+// ① 산 이름: 산 목록(인증 지점)에서 먼저, 없으면 오픈스트리트맵 봉우리 이름으로 찾음
+// ② 지도에서 ● 이름 있는 곳(봉우리·고개·바위·정류장…) · ◆ 인증 지점 · 아무 길 위나 차례로 누름 → 이름 자동(인증 지점 50m → 오픈스트리트맵 이름 → 임시 이름)
+// ③ 오픈스트리트맵 길로 이음(산길 우선: 도로는 4배 먼 길로 쳐서 되도록 산길로) · 같은 곳을 다시 지나면 " (복귀)"
+// ④ 만들기: 실제 경로 km · 고도 오름/내림 · 내 페이스 식(마진 포함) 시각 · 봉우리·인증 지점 휴식 10분 · 도착 반경 50/100m · 확인 필요 · 메모 자동
+var NW=null,APP_NEW=false,NW_REST=10,gNew=L.layerGroup().addTo(map);
+function nwKind(t){t=t||{};var n=t.natural,tr=t.tourism,a=t.amenity,hw=t.highway;
+  if(n==="peak"||n==="hill"||n==="volcano")return ["봉우리",1];if(n==="saddle"||t.mountain_pass==="yes")return ["고개",0];
+  if(n==="rock"||n==="stone"||n==="cliff")return ["바위",0];if(n==="spring")return ["샘",0];if(n==="cave_entrance")return ["굴",0];
+  if(tr==="viewpoint")return ["전망대",0];if(tr==="alpine_hut"||tr==="wilderness_hut"||a==="shelter")return ["대피소·쉼터",0];
+  if(tr==="information")return ["안내판",0];if(tr==="picnic_site")return ["쉼터",0];if(tr==="attraction")return ["명소",0];
+  if(a==="parking")return ["주차장",0];if(a==="townhall")return ["관공서",0];if(a==="place_of_worship")return ["절·교회",0];
+  if(hw==="bus_stop")return ["버스 정류장",0];if(hw==="trailhead")return ["등산로 입구",0];if(t.railway)return ["역",0];if(t.historic)return ["유적",0];return ["",0];}
+// 버스 정류장 "무태안.대교아파트" → "무태안 대교아파트"
+function nwName(t){return String(t["name:ko"]||t.name||"").replace(/\s*\.\s*/g," ").replace(/\s+/g," ").trim();}
+function tgtProgs(id){return CAT?(CAT.programs||[]).filter(function(p){return (p.targets||[]).indexOf(id)>=0;}).map(function(p){return p.n||p.id;}):[];}
+// 인증 지점 이름: "불곡산 (상봉 정상석)" · 뜻 없는 보조 이름(정상석·안내판…)은 뺌
+function tgtName(t){var n=String(t.n||"").replace(/\(.*?\)/g,"").trim(),s=String(t.sub||"").trim();return s&&!/^(정상석|정상\s*표지판|정상|안내판|표지판|표지석)$/.test(s)?n+" ("+s+")":n;}
+function reEsc(s){return String(s).replace(/[.*+?^${}()|[\]\\"]/g,"\\$&");}
+function nwStart(force){if(!force&&dirty&&!confirm("저장 안 한 변경이 있어요. 버리고 새 산행을 만들까요?"))return;
+  if(mode)endMode();META=null;CP=[];SEG=[];HOW=[];sel={t:null,i:-1};undoS=[];redoS=[];dirty=false;lastSaved=null;ROUTE_SIG=null;
+  NW={q:"",sq:0,res:[],resMsg:"",mt:null,pois:[],poiBox:null,picks:[],legs:[],cache:{},pref:ls("ce.nwPref")==="short"?"short":"trail",start:"09:00",name:"",load:""};
+  drawAll();renderPanels();showTab("new");nwBar();setTimeout(function(){var q=document.querySelector("#p-new input[type=search]");if(q)q.focus();},50);}
+function nwCancel(){NW=null;gNew.clearLayers();setModebar(null);renderPanels();if(APP_NEW){appPost({type:"ce-close"});return;}showTab("course");}
+function nwBar(){if(!NW){setModebar(null);return;}
+  if(!NW.mt){setModebar("<b>새 산행 만들기</b> · 산 이름을 찾으세요",[h("button",{text:"취소",onclick:nwCancel})]);return;}
+  setModebar("<b>새 산행</b> · 지점 "+NW.picks.length+"개 · 지도를 눌러 차례로 지점을 넣어요",[h("button",{text:"마지막 취소",disabled:!NW.picks.length,onclick:nwUndo}),
+    h("button",{cls:"pri",text:"만들기",disabled:!nwReady(),onclick:nwBuild})]);}
+// ---- ① 산 찾기 ----
+function nwSearch(){var q=NW.q.trim();NW.res=[];NW.resMsg="";if(!q){renderNew();return;}
+  if(CAT)Object.keys(CAT.targets).forEach(function(id){var t=CAT.targets[id];if(t.lat==null||(t.n+" "+(t.sub||"")).indexOf(q)<0)return;
+    NW.res.push({n:String(t.n).replace(/\(.*?\)/g,"").trim(),sub:t.sub||"",lat:t.lat,lon:t.lon,h:t.h||null,src:"cat",tid:id,progs:tgtProgs(id),where:[t.sido,t.sgg].filter(Boolean).join(" ")});});
+  var my=++NW.sq;NW.resMsg="오픈스트리트맵에서도 찾는 중…";renderNew();
+  overpass('[out:json][timeout:25];nwr["natural"~"^(peak|hill|volcano)$"]["name"~"'+reEsc(q)+'"](33.0,124.5,38.7,131.0);out center tags 30;').then(function(j){if(!NW||my!==NW.sq)return;
+    (j.elements||[]).forEach(function(x){var la=x.lat!=null?x.lat:x.center&&x.center.lat,lo=x.lon!=null?x.lon:x.center&&x.center.lon,t=x.tags||{};if(la==null||!nwName(t))return;
+      if(NW.res.some(function(r){return hav([r.lat,r.lon],[la,lo])<1500;}))return;NW.res.push({n:nwName(t),sub:"",lat:la,lon:lo,h:isFinite(+t.ele)&&t.ele?Math.round(+t.ele):null,src:"osm"});});
+    NW.resMsg=NW.res.length?"":"'"+q+"'을(를) 찾지 못했어요. 지도를 그 산으로 옮긴 뒤 '지금 지도 화면에서 시작'을 누르세요.";renderNew();})
+  .catch(function(e){if(!NW||my!==NW.sq)return;NW.resMsg=(NW.res.length?"":"찾지 못했어요 · ")+"오픈스트리트맵 검색 실패("+e.message+")";renderNew();});}
+function nwChoose(r){NW.mt=r;NW.res=[];map.setView([r.lat,r.lon],14);nwLoad([r.lat,r.lon]);nwBar();
+  if(r.src==="cat"&&CAT&&CAT.targets[r.tid])toast("◆ 인증 지점을 누르면 지점으로 들어가요 · 출발점부터 차례로 누르세요",6000);}
+function nwHere(){var c=map.getCenter();nwChoose({n:NW.q.trim()||"새 산행",lat:c.lat,lon:c.lng,src:"map"});}
+function nwLoad(c,view){var a,b;if(view){var vb=map.getBounds();a=[vb.getSouth(),vb.getWest()];b=[vb.getNorth(),vb.getEast()];}else{a=[c[0]-0.02,c[1]-0.025];b=[c[0]+0.02,c[1]+0.025];}
+  NW.load="등산로·이름 있는 곳을 받는 중…";renderNew();
+  return ensureNet([a,b]).then(function(){NW&&(NW.load="");return nwPois(NET_BOX);},function(e){if(NW){NW.load="등산로를 받지 못했어요 · "+e.message+" (지점끼리 직선으로 이어져요)";renderNew();}});}
+function nwPois(b){if(!NW)return Promise.resolve();if(NW.poiBox&&b[0]>=NW.poiBox[0]&&b[1]>=NW.poiBox[1]&&b[2]<=NW.poiBox[2]&&b[3]<=NW.poiBox[3]){renderNew();return Promise.resolve();}
+  var bb=b.map(function(x){return x.toFixed(5);}).join(","),f=function(k){return 'nwr["name"]'+k+'('+bb+');';};
+  var q='[out:json][timeout:40];('+f('["natural"~"^(peak|hill|volcano|saddle|rock|stone|cliff|spring|cave_entrance)$"]')+f('["tourism"~"^(viewpoint|information|alpine_hut|wilderness_hut|attraction|picnic_site)$"]')+
+    f('["amenity"~"^(shelter|parking|townhall|place_of_worship)$"]')+f('["highway"~"^(bus_stop|trailhead)$"]')+f('["railway"~"^(station|halt)$"]')+f('["mountain_pass"="yes"]')+f('["historic"]')+');out center tags qt;';
+  return overpass(q).then(function(j){if(!NW)return;var out=[];(j.elements||[]).forEach(function(x){var t=x.tags||{},n=nwName(t),la=x.lat!=null?x.lat:x.center&&x.center.lat,lo=x.lon!=null?x.lon:x.center&&x.center.lon;if(!n||la==null)return;
+      var k=nwKind(t);if(!k[0])return;var gap=k[0]==="버스 정류장"?80:30;if(out.some(function(o){return o.n===n&&hav([o.lat,o.lon],[la,lo])<gap;}))return;
+      out.push({n:n,k:k[0],peak:!!k[1],lat:la,lon:lo,ele:isFinite(+t.ele)&&t.ele?Math.round(+t.ele):null});});
+    NW.pois=out;NW.poiBox=b;drawNew();renderNew();}).catch(function(e){if(NW){NW.load="이름 있는 곳을 받지 못했어요 · "+e.message+" (지점은 '지점 N'으로 들어가요)";renderNew();}});}
+// ---- ② 지점 찍기 ----
+function nwHitTol(){return Math.max(25,14*metersPerPx());}
+// 누른 곳 근처: 인증 지점(50m, 가장 먼저) → 오픈스트리트맵 이름 있는 곳
+function nwFind(ll,tol){var best=null;
+  if(CAT)Object.keys(CAT.targets).forEach(function(id){var t=CAT.targets[id];if(t.lat==null)return;var d=hav(ll,[t.lat,t.lon]);if(d<=Math.max(tol,50)&&(!best||d<best.d))best={src:"cat",tid:id,d:d,lat:t.lat,lon:t.lon,n:tgtName(t),k:"인증 지점",peak:true};});
+  if(best)return best;
+  (NW.pois||[]).forEach(function(o){var d=hav(ll,[o.lat,o.lon]);if(d<=tol&&(!best||d<best.d))best={src:"osm",d:d,lat:o.lat,lon:o.lon,n:o.n,k:o.k,peak:o.peak,ele:o.ele};});
+  return best;}
+// 가장 가까운 등산로 점 (maxM 안)
+function nwNetNear(ll,maxM){if(!NET)return null;var cosl=Math.cos(ll[0]*RAD),M=111320,bi=-1,bd=maxM;for(var i=0;i<NET.n;i++){var dy=(NET.lat[i]-ll[0])*M,dx=(NET.lon[i]-ll[1])*M*cosl,d=Math.sqrt(dx*dx+dy*dy);if(d<bd){bd=d;bi=i;}}
+  return bi<0?null:{ll:[NET.lat[bi],NET.lon[bi]],d:bd};}
+function nwClick(ll){if(!NW||!NW.mt)return;var f=nwFind(ll,nwHitTol());
+  if(!f){var s=nwNetNear(ll,60);if(s)f=nwFind(s.ll,40);if(!f){nwAdd({n:"",lat:r6(s?s.ll[0]:ll[0]),lon:r6(s?s.ll[1]:ll[1]),src:"map",k:"",peak:false});return;}}
+  nwAdd({n:f.n,lat:f.lat,lon:f.lon,src:f.src,tid:f.tid,k:f.k,peak:!!f.peak,ele:f.ele});}
+function nwAdd(p,at){var P=NW.picks;if(at==null)at=P.length;
+  var nb=[P[at-1],P[at]].filter(Boolean);if(nb.some(function(q){return hav([q.lat,q.lon],[p.lat,p.lon])<10;})){toast("바로 앞(뒤) 지점과 같은 곳이에요");return;}
+  P.splice(at,0,p);nwRoute();toast((at+1)+"번 '"+nwLabel(at)+"' 넣음"+(p.src==="cat"?" · 인증: "+tgtProgs(p.tid).join(", "):""),3500);}
+function nwUndo(){if(!NW||!NW.picks.length)return;NW.picks.pop();nwRoute();}
+function nwDel(i){NW.picks.splice(i,1);nwRoute();}
+function nwMove(i,d){var P=NW.picks,j=i+d;if(j<0||j>=P.length)return;var t=P[i];P[i]=P[j];P[j]=t;nwRoute();}
+function nwBase(n){return String(n||"").replace(/\s*\(복귀\)\s*$/,"");}
+// 앞에서 지난 곳(30m 안)을 다시 지나면 그 지점 이름 + " (복귀)"
+function nwMarkRet(){var P=NW.picks;P.forEach(function(p,i){p.retOf=null;for(var j=0;j<i-1;j++){if(hav([P[j].lat,P[j].lon],[p.lat,p.lon])<30){p.retOf=j;break;}}});}
+function nwLabel(i){var P=NW.picks,p=P[i];if(!p)return "";if(p.custom)return p.n;
+  var base=p.retOf!=null?nwBase(nwLabel(p.retOf)):p.n;if(!base)base=i===0?"출발":(i===P.length-1?"도착":"지점 "+(i+1));return p.retOf!=null?base+" (복귀)":base;}
+function nwKey(a,b){return (+a.lat).toFixed(6)+","+(+a.lon).toFixed(6)+">"+(+b.lat).toFixed(6)+","+(+b.lon).toFixed(6)+"|"+NW.pref;}
+// 구간마다 길찾기 (한 번 찾은 구간은 다시 찾지 않음)
+function nwRoute(){var P=NW.picks,need=[];nwMarkRet();
+  for(var i=0;i<P.length-1;i++){var k=nwKey(P[i],P[i+1]);if(!NW.cache[k]&&!need.some(function(x){return x[2]===k;}))need.push([P[i],P[i+1],k]);}
+  nwRefresh();if(!need.length)return Promise.resolve();
+  var pts=[];need.forEach(function(x){pts.push([x[0].lat,x[0].lon],[x[1].lat,x[1].lon]);});var my=NW;
+  function done(net){if(NW!==my)return;need.forEach(function(x){var a=[x[0].lat,x[0].lon],b=[x[1].lat,x[1].lon],r=net?netRoute(net,a,b,NW.pref==="trail"):null;
+      NW.cache[x[2]]=r?{pts:r.pts,m:r.m,how:"길"}:{pts:[[a[0],a[1],null],[b[0],b[1],null]],m:hav(a,b),how:"직선"};});nwRefresh();}
+  return ensureNet(pts).then(done,function(e){toast(e.message+" · 직선으로 이어요",5000);done(null);});}
+function nwRefresh(){if(!NW)return;var P=NW.picks;NW.legs=[];for(var i=0;i<P.length-1;i++)NW.legs.push(NW.cache[nwKey(P[i],P[i+1])]||null);drawNew();renderNew();nwBar();}
+function nwReady(){return !!(NW&&NW.picks.length>=2&&NW.legs.length===NW.picks.length-1&&NW.legs.every(Boolean));}
+function nwTrack(){var out=[];(NW.legs||[]).forEach(function(l){if(l)out=out.concat(l.pts);});return out;}
+function nwKm(){var m=0;(NW.legs||[]).forEach(function(l){if(l)m+=l.m;});return m/1000;}
+// 이 경로로 인증되는 곳(경로가 인증 반경 안을 지남) · 600m 안 가까운 인증 지점
+function nwTargets(){if(!CAT||!NW)return [];var tr=nwTrack();if(tr.length<2)tr=NW.picks.map(function(p){return [p.lat,p.lon];});if(!tr.length)return [];
+  var b=null;tr.forEach(function(p){if(!b)b=[p[0],p[1],p[0],p[1]];else{b[0]=Math.min(b[0],p[0]);b[1]=Math.min(b[1],p[1]);b[2]=Math.max(b[2],p[0]);b[3]=Math.max(b[3],p[1]);}});b=[b[0]-0.006,b[1]-0.008,b[2]+0.006,b[3]+0.008];
+  var res=[];Object.keys(CAT.targets).forEach(function(id){var t=CAT.targets[id];if(t.lat==null||!inBox(b,[t.lat,t.lon]))return;var q=[t.lat,t.lon],d=tr.length>1?(nearestOn(tr,q,1)||{d:1e9}).d:hav(tr[0],q);
+    if(d>600)return;res.push({id:id,t:t,d:Math.round(d),inR:d<=tgtCertM(t),progs:tgtProgs(id)});});
+  return res.sort(function(a,b){return a.d-b.d;});}
+// 경로 밖 인증 지점을 가장 가까운 구간 사이에 지점으로 넣기
+function nwInsertTgt(x){var best=-1,bd=1e9;NW.legs.forEach(function(l,i){if(!l)return;var r=nearestOn(l.pts,[x.t.lat,x.t.lon],1);if(r&&r.d<bd){bd=r.d;best=i;}});
+  nwAdd({n:tgtName(x.t),lat:x.t.lat,lon:x.t.lon,src:"cat",tid:x.id,k:"인증 지점",peak:true},best<0?NW.picks.length:best+1);}
+function nwAutoName(){var P=NW.picks,a=nwBase(nwLabel(0)),b=nwBase(nwLabel(P.length-1)),loop=P.length>2&&P[P.length-1].retOf===0;
+  return NW.mt.n+" ("+(loop?a+" 원점 회귀":a+" → "+b)+")";}
+// ---- 지도 그리기 ----
+function drawNew(){gNew.clearLayers();if(!NW)return;var z=map.getZoom();
+  NW.pois.forEach(function(o){var big=o.peak||o.k==="고개"||o.k==="대피소·쉼터";
+    var m=L.marker([o.lat,o.lon],{icon:L.divIcon({className:"",iconSize:[0,0],html:'<div class="nwp'+(o.peak?" pk":"")+'"><i></i>'+(big||z>=16?'<b>'+esc(o.n)+(o.ele?" "+o.ele+"m":"")+'</b>':"")+'</div>'}),zIndexOffset:o.peak?600:300,title:o.n+" · "+o.k});
+    m.on("click",function(ev){L.DomEvent.stopPropagation(ev);if(NW&&NW.mt)nwClick([o.lat,o.lon]);});m.addTo(gNew);});
+  NW.legs.forEach(function(l){if(!l)return;L.polyline(l.pts.map(function(p){return [p[0],p[1]];}),{color:"#e8590c",weight:5,opacity:.9,dashArray:l.how==="직선"?"6 8":null,interactive:false}).addTo(gNew);});
+  NW.picks.forEach(function(p,i){L.marker([p.lat,p.lon],{icon:L.divIcon({className:"",iconSize:[0,0],html:'<div class="nwk'+(p.src==="cat"?" ct":"")+'"><i>'+(i+1)+'</i><b>'+esc(nwLabel(i))+'</b></div>'}),zIndexOffset:2000,interactive:false}).addTo(gNew);});}
+map.on("zoomend",function(){if(NW)drawNew();});
+// ---- 패널 ----
+function renderNew(){var p=$("p-new");if(!p)return;p.textContent="";if(!NW){p.appendChild(h("p",{cls:"msg",text:"코스 탭의 '＋ 새 산행'으로 시작하세요."}));return;}
+  p.appendChild(h("div",{cls:"nwhd"},[h("b",{text:"＋ 새 산행 만들기"}),h("button",{cls:"sm",text:APP_NEW?"닫기":"취소",onclick:nwCancel})]));
+  p.appendChild(h("p",{cls:"msg",text:"① 산 찾기 → ② 지도에서 지점을 차례로 누르기 → ③ 만들기 (거리·오름/내림·시간표 자동)"}));
+  p.appendChild(h("h3",{text:"① 산"}));
+  if(!NW.mt){var q=h("input",{type:"search",value:NW.q,placeholder:"산 이름 (예: 불곡산, 북한산)"});q.addEventListener("input",function(){NW.q=q.value;});q.addEventListener("keydown",function(e){if(e.key==="Enter"){NW.q=q.value;nwSearch();}});
+    p.appendChild(h("div",{cls:"row"},[q,h("button",{cls:"pri",text:"찾기",onclick:function(){NW.q=q.value;nwSearch();}})]));
+    if(!CAT)p.appendChild(h("p",{cls:"msg",text:"저장소를 연결하면 산 목록(100대 명산 등 인증 지점)에서 먼저 찾고 프로그램이 연결돼요. 지금은 오픈스트리트맵 봉우리 이름으로만 찾아요."}));
+    if(NW.res.length){var bx=h("div",{cls:"list"});NW.res.forEach(function(r){bx.appendChild(h("button",{cls:"it",onclick:function(){nwChoose(r);}},[h("span",{cls:"n pk",text:r.src==="cat"?"◆":"▲"}),
+      h("span",null,[h("b",{text:r.n+(r.sub?" · "+r.sub:"")+(r.h?" "+r.h+"m":"")}),h("small",{text:r.src==="cat"?r.progs.join(", ")+(r.where?" · "+r.where:""):"오픈스트리트맵 봉우리"})])]));});p.appendChild(bx);}
+    if(NW.resMsg)p.appendChild(h("p",{cls:"msg",text:NW.resMsg}));
+    p.appendChild(h("div",{cls:"row"},[h("button",{text:"지금 지도 화면에서 시작",title:"찾지 못한 산은 지도를 그곳으로 옮긴 뒤 여기서 시작",onclick:nwHere})]));return;}
+  p.appendChild(h("div",{cls:"row"},[h("b",{text:NW.mt.n+(NW.mt.sub?" · "+NW.mt.sub:"")}),h("button",{cls:"sm",text:"다른 산",onclick:function(){if(NW.picks.length&&!confirm("찍은 지점을 지우고 다른 산을 찾을까요?"))return;NW.mt=null;NW.picks=[];NW.legs=[];drawNew();renderNew();nwBar();}}),
+    h("button",{cls:"sm",text:"이 화면 범위 다시 받기",title:"지도를 옮겨 범위를 넓혔을 때 등산로·이름 있는 곳을 다시 받아요",onclick:function(){nwLoad(null,true);}})]));
+  p.appendChild(h("p",{cls:"msg",text:NW.load||("이름 있는 곳 "+NW.pois.length+"개(●)"+(NET?" · 등산로 받음":"")+(CAT?" · ◆ 인증 지점은 지도에 빨간 점선 원":""))}));
+  p.appendChild(h("h3",{text:"② 지점 ("+NW.picks.length+")"}));
+  p.appendChild(h("div",{cls:"row"},[h("span",{cls:"msg",text:"길 고르기"}),
+    h("button",{cls:"sm"+(NW.pref==="trail"?" on":""),text:"산길 우선",title:"도로를 4배 먼 길로 쳐서 되도록 산길로 이어요",onclick:function(){nwPref("trail");}}),
+    h("button",{cls:"sm"+(NW.pref==="short"?" on":""),text:"최단 거리",onclick:function(){nwPref("short");}})]));
+  if(!NW.picks.length)p.appendChild(h("p",{cls:"msg",html:"지도에서 <b>출발점부터 차례로</b> 누르세요. ● 이름 있는 곳 · ◆ 인증 지점을 누르면 그 이름이, 길 위 아무 곳은 '지점 N'(만들 때 고도로 '무명봉' 등)이 돼요. 같은 곳을 다시 누르면 '(복귀)'가 붙어요."}));
+  var bx2=h("div",{cls:"list"});NW.picks.forEach(function(pk,i){var l=i?NW.legs[i-1]:null,ni=h("input",{value:nwLabel(i),style:"min-width:0"});
+    ni.onchange=function(){var v=ni.value.trim();pk.n=v;pk.custom=!!v;drawNew();renderNew();};
+    var info=[];if(pk.src==="cat")info.push("◆ 인증: "+tgtProgs(pk.tid).join(", "));else if(pk.k)info.push(pk.k+(pk.ele?" "+pk.ele+"m":""));else info.push("이름 없음");
+    if(i)info.push(l?"+"+(l.m/1000).toFixed(2)+"km "+(l.how==="직선"?"⚠ 직선(길 없음)":"길"):"길 찾는 중…");
+    bx2.appendChild(h("div",{cls:"it nwrow"},[h("span",{cls:"n"+(pk.peak?" pk":""),text:String(i+1)}),h("span",{style:"flex:1;min-width:0"},[ni,h("small",{text:info.join(" · ")})]),
+      h("span",{cls:"r"},[h("button",{cls:"sm",text:"↑",disabled:!i,onclick:function(){nwMove(i,-1);}}),h("button",{cls:"sm",text:"↓",disabled:i===NW.picks.length-1,onclick:function(){nwMove(i,1);}}),h("button",{cls:"sm danger",text:"✕",onclick:function(){nwDel(i);}})])]));});
+  p.appendChild(bx2);
+  if(NW.picks.length)p.appendChild(h("div",{cls:"row"},[h("button",{text:"마지막 취소",onclick:nwUndo}),h("button",{text:"출발점으로 돌아오기",disabled:NW.picks.length<2,onclick:function(){var a=NW.picks[0];nwAdd({n:a.n,lat:a.lat,lon:a.lon,src:a.src,tid:a.tid,k:a.k,peak:a.peak,ele:a.ele});}}),
+    h("button",{text:"지도 맞추기",onclick:function(){var t=nwTrack();if(!t.length)t=NW.picks.map(function(q){return [q.lat,q.lon];});map.fitBounds(L.latLngBounds(t.map(function(q){return [q[0],q[1]];})).pad(0.15));}})]));
+  if(NW.picks.length>1)p.appendChild(h("p",{cls:"msg",style:"font-weight:700",text:"경로 "+nwKm().toFixed(2)+"km · 지점 "+NW.picks.length+"개"+(NW.legs.some(function(l){return !l;})?" · 길 찾는 중…":"")}));
+  p.appendChild(h("h3",{text:"③ 연결되는 프로그램"}));
+  if(!CAT)p.appendChild(h("p",{cls:"msg",text:"저장소를 연결하면 100대 명산·섬&산·정맥 등 이 경로로 인증되는 곳을 보여줘요."}));
+  else{var tg=nwTargets();if(!tg.length)p.appendChild(h("p",{cls:"msg",text:NW.picks.length?"경로 600m 안에 인증 지점이 없어요.":"지점을 찍으면 근처 인증 지점이 보여요."}));
+    var bx3=h("div",{cls:"list"});tg.forEach(function(x){bx3.appendChild(h("div",{cls:"it"},[h("span",{cls:"n pk",text:x.inR?"✓":"△"}),
+      h("span",{style:"flex:1;min-width:0"},[h("b",{text:tgtName(x.t)}),h("small",{text:x.progs.join(", ")+" · "+(x.inR?"경로가 인증 반경("+tgtCertM(x.t)+"m) 안을 지나요":"경로에서 "+x.d+"m · 인증 반경 "+tgtCertM(x.t)+"m 밖")})]),
+      x.inR?null:h("span",{cls:"r"},[h("button",{cls:"sm",text:"지점으로 넣기",disabled:!NW.legs.length,onclick:function(){nwInsertTgt(x);}})])]));});p.appendChild(bx3);}
+  p.appendChild(h("h3",{text:"④ 만들기"}));
+  var nm=h("input",{value:NW.name,placeholder:NW.picks.length>1?nwAutoName():"코스 이름 (비우면 자동)"});nm.onchange=function(){NW.name=nm.value.trim();};
+  var st=h("input",{type:"time",value:NW.start});st.onchange=function(){NW.start=normT(st.value)||"09:00";};
+  p.appendChild(h("label",{cls:"f"},["코스 이름",nm]));p.appendChild(h("label",{cls:"f"},["출발 시각",st]));
+  p.appendChild(h("p",{cls:"msg",text:"만들면: 실제 경로 km · 구간별 오름/내림(고도) · 내 페이스 식("+hpPaceTxt(PACE)+")으로 도착 시각 · 봉우리·인증 지점 휴식 "+NW_REST+"분 · 도착 반경 50m(길에서 50m 넘게 떨어진 정상·대피소는 100m) · 확인 필요·메모를 채워요."}));
+  p.appendChild(h("button",{cls:"pri",text:"만들기 (km·고도·시간 자동)",disabled:!nwReady(),onclick:nwBuild}));}
+function nwPref(v){if(!NW||NW.pref===v)return;NW.pref=v;ls("ce.nwPref",v);nwRoute();}
+// ---- ④ 만들기 ----
+function nwBuild(){if(!nwReady())return;var P=NW.picks,legs=NW.legs,info={pref:NW.pref,straight:legs.filter(function(l){return l.how==="직선";}).length,tg:nwTargets().filter(function(x){return x.inR;})};
+  var labels=P.map(function(p,i){return nwLabel(i);}),unnamed=[];P.forEach(function(p,i){if(!p.custom&&!p.n&&p.retOf==null&&i>0&&i<P.length-1)unnamed.push(i);});
+  var km=[0];legs.forEach(function(l,i){km.push(km[i]+l.m/1000);});
+  var tr=[];legs.forEach(function(l,i){var g=0;l.pts.forEach(function(q,k){if(k)g+=hav(l.pts[k-1],q);if(tr.length&&k===0)return;tr.push([r6(q[0]),r6(q[1]),+(km[i]+g/1000).toFixed(4)]);});});
+  var cps=P.map(function(p,i){var mid=i>0&&i<P.length-1,rest=mid&&(p.src==="cat"||p.peak)&&p.retOf==null?NW_REST:0,nr=nwNetNear([p.lat,p.lon],1000),off=nr?nr.d:0,
+      big=p.src==="cat"||p.peak||p.k==="대피소·쉼터",rad=big&&off>50?0.1:0.05,nt=[];
+    if(i===0)nt.push("출발");else if(i===P.length-1)nt.push("도착");
+    if(p.src==="cat")nt.push("◆ 인증: "+tgtProgs(p.tid).join(", "));else if(p.k)nt.push(p.k+(p.ele?" "+p.ele+"m":""));
+    if(rest)nt.push("휴식 "+rest+"분");if(rad>0.05)nt.push("길에서 "+Math.round(off)+"m 떨어져 도착 반경 100m");
+    return {name:labels[i],km:+km[i].toFixed(3),arrive:i===0?NW.start:(rest?"09:00":""),depart:rest?fmt(540+rest):"",note:nt.join(" · "),peak:mid&&(p.src==="cat"||!!p.peak),radiusKm:rad,lat:r6(p.lat),lon:r6(p.lon)};});
+  var group=NW.mt.n,start=NW.start,custom=NW.name,keep={picks:P.map(function(p){return {retOf:p.retOf,custom:!!p.custom};})};
+  var o={format:"hikepace-course",version:1,id:newId(),updatedAt:0,name:custom||nwAutoName(),sport:"hike",date:"",endTime:"",endLabel:"",notes:"",group:group,checkpoints:cps,track:tr,planBy:"model"};
+  NW=null;gNew.clearLayers();setModebar(null);loadCourse(o,"새 산행");setDirty(true);
+  toast("길과 지점을 만들었어요 · 고도를 받아 시간을 계산하는 중…",15000);
+  return recalcModel({km:true,times:true,start:start}).then(function(ok){info.ele=ok;if(!ok)nwFlatTimes(start);return ok?nwNameTops(unnamed):null;}).then(function(){
+    keep.picks.forEach(function(k,i){if(k.retOf!=null&&!k.custom&&CP[i]&&CP[k.retOf])CP[i].name=nwBase(CP[k.retOf].name)+" (복귀)";});
+    var a=nwBase(CP[0].name),z=nwBase(CP[CP.length-1].name),loop=keep.picks.length>2&&keep.picks[keep.picks.length-1].retOf===0;
+    if(!custom)META.name=group+" ("+(loop?a+" 원점 회귀":a+" → "+z)+")";
+    if(!META.extra)META.extra={};META.extra.group=group;META.extra.family=loop?a+" 원점 회귀":a+" → "+z;META.extra.planBy="model";
+    META.extra.check="⚠ 공식 시간이 없어 거리·고도로 추정한 시간(마진 "+hpPace(PACE).margin+"%)이라 실제와 다를 수 있음. 공식 탐방로·출입 통제 여부는 직접 확인."+(info.straight?" "+info.straight+"구간은 등산로 데이터가 없어 직선으로 이음 → 구간 탭 '다시 그리기'.":"")+(info.ele?"":" 고도를 못 받아 평지 기준 시간 → 코스 탭 '고도로 시각 다시 계산'.");
+    META.notes=nwNotes(info);ROUTE_SIG=segLens();setDirty(true);drawAll(true);renderPanels();showTab("cps");
+    toast("새 산행을 만들었어요 · "+hpPlanLine(hpPlan(planCps()))+(APP?" · '저장'을 눌러 앱에 넣으세요":" · '앱에 올리기'나 '파일로 저장'으로 저장하세요"),9000);return true;});}
+// 고도를 못 받았을 때: 평지 기준(오르막 0) 시간 · 쉬는 시간은 그대로
+function nwFlatTimes(st){var t=hm(st);CP.forEach(function(c,i){var rest=i&&i<CP.length-1&&normT(c.depart)&&normT(c.arrive)?hm(c.depart)-hm(c.arrive):0;
+  if(i)t+=Math.max(1,Math.round(hpModelMin(c.km-CP[i-1].km,0,0,PACE,false)));c.arrive=fmt(t);if(rest>0){c.depart=fmt(t+rest);t+=rest;}else if(i)c.depart="";});
+  if(!META.extra)META.extra={};META.extra.planBy="model";}
+// 이름 없는 중간 지점: 앞뒤 300m보다 높으면 "무명봉 (NNNm)", 낮으면 "안부 (NNNm)", 아니면 "지점 N (NNNm)"
+function nwNameTops(idx){if(!idx.length)return Promise.resolve();
+  var asks=idx.map(function(i){var a=i>0&&SEG[i-1]?resample(SEG[i-1],100).slice(-4,-1):[],b=SEG[i]?resample(SEG[i],100).slice(1,4):[];return {i:i,c:[CP[i].lat,CP[i].lon],nb:a.concat(b)};}),all=[];
+  asks.forEach(function(x){all.push(x.c);all=all.concat(x.nb);});
+  return fetchEle(all).then(function(){asks.forEach(function(x){var e=ELE[eleKey(x.c)];if(e==null||!isFinite(e))return;var v=x.nb.map(function(q){return ELE[eleKey(q)];}).filter(function(z){return z!=null&&isFinite(z);});
+    var top=v.length>=2&&v.every(function(z){return e>=z-2;})&&v.some(function(z){return e-z>=8;}),low=v.length>=2&&v.every(function(z){return e<=z+2;})&&v.some(function(z){return z-e>=8;});
+    CP[x.i].name=(top?"무명봉":low?"안부":"지점 "+(x.i+1))+" ("+Math.round(e)+"m)";});}).catch(function(){});}
+function nwNotes(info){var pl=hpPlan(planCps()),rs=pl.rests.map(function(r){return r.n+" "+r.min;}).join(" · ");
+  return [CP[0].arrive+" 출발(시작 시각은 바꿔도 됨). "+CP.map(function(c){return c.name;}).join(" → ")+". 편집기 '새 산행 만들기'로 만듦.",
+    "시간: 공식 시간이 없어 고도 모델("+hpPaceTxt(PACE)+")로 계산"+(info.ele?" · 고도 "+eleSrcName():" · 고도를 못 받아 평지 기준(오르막 없음)")+".",
+    "쉬는 시간: "+(rs?rs+" = 합계 "+pl.rest+"분":"없음")+". "+hpPlanLine(pl)+" ("+CP[0].arrive+"→"+CP[CP.length-1].arrive+").",
+    "경로: 오픈스트리트맵 길로 이음("+(info.pref==="trail"?"산길 우선":"최단 거리")+") · 출입 금지·비공식 표시 길은 쓰지 않음"+(info.straight?" · "+info.straight+"구간은 길 데이터가 없어 직선":"")+".",
+    info.tg.length?"인증: "+info.tg.map(function(x){return tgtName(x.t)+" ("+x.progs.join(", ")+")";}).join(" · ")+".":""].filter(Boolean).join("\n");}
 
 // ============ 앱 안 '지도 편집' 모드 (산행 페이스 앱이 editor.html?app=1 을 띄움) ============
 var APP=/[?&]app=1/.test(location.search)&&window.parent!==window,ME=null,meM=null,GPS_CB=null;
@@ -1184,8 +1404,9 @@ if(APP){document.body.classList.add("app");document.title="지도 편집";
   $("grab").onclick=function(){var b=document.body;if(b.classList.contains("sheetMin")){b.classList.remove("sheetMin");}else if(b.classList.contains("sheetMax")){b.classList.remove("sheetMax");b.classList.add("sheetMin");}else b.classList.add("sheetMax");setTimeout(function(){map.invalidateSize();},250);};
   $("locB").onclick=function(){GPS_CB=null;needGps(function(p){map.setView([p.lat,p.lon],Math.max(map.getZoom(),16));});};
   window.addEventListener("message",function(ev){var m=ev.data||{};
-    if(m.type==="ce-open"&&m.course){if(m.pace)setPace(m.pace,true);if(m.catalog){CAT={programs:m.catalog.programs||[],targets:m.catalog.targets||{}};CAT_DIRTY={};}dirty=false;loadCourse(m.course,"앱");if(m.me)setMe(m.me);showTab(m.tab||"cps");setTimeout(fitAll,150);}
-    else if(m.type==="ce-me"&&m.me){setMe(m.me);var f=GPS_CB;GPS_CB=null;if(f)f(m.me);}
+    if(m.type==="ce-open"&&m.newCourse){if(m.pace)setPace(m.pace,true);if(m.catalog){CAT={programs:m.catalog.programs||[],targets:m.catalog.targets||{}};CAT_DIRTY={};}if(m.me){setMe(m.me);map.setView([m.me.lat,m.me.lon],13);}APP_NEW=true;nwStart(true);}
+    else if(m.type==="ce-open"&&m.course){if(m.pace)setPace(m.pace,true);if(m.catalog){CAT={programs:m.catalog.programs||[],targets:m.catalog.targets||{}};CAT_DIRTY={};}dirty=false;loadCourse(m.course,"앱");if(m.me)setMe(m.me);showTab(m.tab||"cps");setTimeout(fitAll,150);}
+    else if(m.type==="ce-me"&&m.me){setMe(m.me);if(APP_NEW&&NW&&!NW.mt&&!NW.centered){NW.centered=1;map.setView([m.me.lat,m.me.lon],13);}var f=GPS_CB;GPS_CB=null;if(f)f(m.me);}
     else if(m.type==="ce-saved"){lastSaved=new Date().toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"});setDirty(false);toast("앱 코스에 저장했어요");}});
   appPost({type:"ce-ready"});}
 window.__ce={openText:openText,state:function(){return {META:META,CP:CP,SEG:SEG,HOW:HOW,GPX:GPX,CAT:CAT,CAT_DIRTY:CAT_DIRTY,sel:sel,mode:mode};},toPublic:function(){return toPublic();},
@@ -1193,6 +1414,7 @@ window.__ce={openText:openText,state:function(){return {META:META,CP:CP,SEG:SEG,
   gpxApplyAll:gpxApplyAll,kmFromRoute:kmFromRoute,upload:upload,uploadCatalog:uploadCatalog,connect:connect,undo:undo,redo:redo,openCloud:openCloud,
   setRepo:function(r,t){REPO=r;TOKEN=t;},map:map,
   recalcModel:recalcModel,beforeSave:beforeSave,routeChanged:routeChanged,resample:resample,setEle:function(f){ELE={};ELE_SRC='';window.__eleFn=f;},eleFix:eleFix,eleSrc:function(v){if(v!==undefined)ELE_SRC=v;return ELE_SRC;},pace:function(p){if(p!==undefined)setPace(p,true);return PACE;},
+  nwStart:nwStart,nwState:function(){return NW;},nwClick:nwClick,nwBuild:nwBuild,nwSearch:function(q){NW.q=q;nwSearch();},nwChoose:nwChoose,nwPref:nwPref,nwInsertTgt:nwInsertTgt,nwTargets:nwTargets,nwLabel:nwLabel,netRoute:netRoute,ensureNet:ensureNet,
   paceTrack:paceTrack,paceSamples:paceSamples,paceSegs:paceSegs,paceFit:paceFit,paceSolve:paceSolve,planCps:planCps,fetchEle:fetchEle,hpModelMin:hpModelMin,hpPlan:hpPlan,hm:hm};
 setLayer(LAYERS.hasOwnProperty(startLayer)?startLayer:"지형 (OpenTopoMap)");
 renderPanels();
