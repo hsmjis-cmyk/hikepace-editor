@@ -77,6 +77,10 @@ h3{font-size:13px;margin:14px 0 6px;color:var(--muted)}
 .hp table{width:100%;border-collapse:collapse;font-size:12px;margin:4px 0 10px}.hp th{background:var(--accent);color:#fff;text-align:left;padding:5px 6px;font-weight:700;white-space:nowrap}
 .hp td{border-bottom:1px solid var(--line);padding:5px 6px;vertical-align:top}.hp td:first-child{font-weight:700;white-space:nowrap}.hp h3{color:var(--ink);font-size:14px;margin:16px 0 4px}.hp ol{padding-left:18px;margin:4px 0;font-size:13px}.hp li{margin:3px 0}
 details.fold>summary{cursor:pointer;font-size:13px;font-weight:700;color:var(--muted);margin:14px 0 6px;list-style:revert}
+.cathd{margin:12px 0 4px;font-size:12px;font-weight:800;color:var(--muted);letter-spacing:.04em;border-bottom:1px solid var(--line,#ddd)}
+details.tree{margin:2px 0 2px 6px}details.tree>summary{cursor:pointer;padding:5px 2px;list-style:revert}
+.mthd{margin:6px 0 1px}small.chips{display:block;color:#2b6cb0}.tgl{font-size:12px;margin:-2px 0 4px}
+.seg button.on{background:var(--accent,#2e6b45);color:#fff}
 .lg{font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:3px}
 .lg span::before{content:"";display:inline-block;width:14px;height:10px;margin-right:6px;vertical-align:-1px;border-radius:2px;background:var(--c)}
 kbd{font-size:11px;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 4px;background:#fff}
@@ -945,10 +949,79 @@ function hpSun(lat,lon,date){var d=date instanceof Date?date:new Date((date||"")
 // 산불조심기간 (봄 2/1~5/15 · 가을 11/1~12/15): 국립공원·일부 산은 탐방로를 통제할 수 있다. date "YYYY-MM-DD" (없으면 오늘)
 function hpFireSeason(date){var d=date?new Date(date+"T12:00:00"):new Date();if(isNaN(d))d=new Date();var k=(d.getMonth()+1)*100+d.getDate();
   return k>=201&&k<=515?"봄철 산불조심기간(2/1~5/15)":k>=1101&&k<=1215?"가을철 산불조심기간(11/1~12/15)":"";}
+// ===== 코스 트리 (v8.5): 분류 › 프로그램 › [시·도] › 산 › 코스 · 대간·정맥·둘레길은 프로그램 › 코스(구간 순서) =====
+// 코스는 경로가 인증 지점 반경(certM) 안을 지나는 모든 산·프로그램에 자동으로 들어간다(한 코스가 여러 프로그램에 보임).
+// 경로가 아무 인증 지점도 안 지나면 group 이 산 이름과 같고 15km 안인 산에 '고정'(pin)한다. 그것도 없으면 '연결 안 된 코스'.
+// index.json 항목에는 tg(지나는 인증 지점 id)·pin·cpn(지점 이름)을 저장할 때 같이 넣는다(편집기·앱·tools/index_links.js).
+var HP_CATS=["명산","섬","대간 & 정맥","둘레길","기타"];
+var HP_SIDO=["서울","경기","인천","강원","충북","충남","대전","세종","전북","전남","광주","경북","경남","대구","울산","부산","제주"];
+function hpCat(p){return p.cat&&HP_CATS.indexOf(p.cat)>=0?p.cat:(p.type==="trail"?"대간 & 정맥":p.type==="peaks"?"명산":"기타");}
+function hpSidoCmp(a,b){var i=HP_SIDO.indexOf(a),j=HP_SIDO.indexOf(b);return (i<0?99:i)-(j<0?99:j)||String(a).localeCompare(String(b),"ko");}
+function hpCertM(t){return +t.certM>0?+t.certM:(t.approx?300:200);}
+function hpDistM(a,b){var r=Math.PI/180,dp=(b[0]-a[0])*r,dl=(b[1]-a[1])*r,s=Math.sin(dp/2)*Math.sin(dp/2)+Math.cos(a[0]*r)*Math.cos(b[0]*r)*Math.sin(dl/2)*Math.sin(dl/2);return 2*6371000*Math.asin(Math.min(1,Math.sqrt(s)));}
+function hpBaseName(n){return String(n||"").replace(/\(.*?\)/g,"").trim();}
+// 경로 점 [[lat,lon,…]] → 지나는 인증 지점 id (targets: {id:{lat,lon,certM,approx}}) · 앱 인증(tgtPassed)과 같은 기준
+function hpPassTargets(pts,targets){var out=[];if(!pts||!pts.length)return out;
+  var la0=90,la1=-90,lo0=180,lo1=-180;pts.forEach(function(p){la0=Math.min(la0,p[0]);la1=Math.max(la1,p[0]);lo0=Math.min(lo0,p[1]);lo1=Math.max(lo1,p[1]);});
+  for(var id in targets){var t=targets[id];if(!t||t.lat==null)continue;var lim=hpCertM(t),dg=lim/90000+0.001;
+    if(t.lat<la0-dg||t.lat>la1+dg||t.lon<lo0-dg*1.3||t.lon>lo1+dg*1.3)continue;
+    for(var i=0;i<pts.length;i++){if(hpDistM([t.lat,t.lon],pts[i])<=lim){out.push(id);break;}}}
+  return out;}
+// 코스 연결: {tg:[…], pin:true/false} · pts 경로(없으면 지점 좌표), group 묶음 이름
+function hpCourseLink(pts,group,targets){var tg=hpPassTargets(pts,targets);if(tg.length||!group||!pts||!pts.length)return {tg:tg,pin:false};
+  var g=hpBaseName(group),best=null,bd=15000;for(var id in targets){var t=targets[id];if(!t||t.lat==null||hpBaseName(t.n)!==g)continue;var d=hpDistM(pts[0],[t.lat,t.lon]);if(d<bd){bd=d;best=id;}}
+  return best?{tg:[best],pin:true}:{tg:[],pin:false};}
+// 검색: 띄어쓰기·기호 무시, 초성(ㄴㅈㅅ) 가능 · 맞으면 true
+var HP_CHO="ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ";
+function hpNorm(t){return String(t||"").toLowerCase().replace(/[\s·()\[\],.\-_\/]+/g,"");}
+function hpMatch(text,q){var t=hpNorm(text),nq=hpNorm(q);if(!nq||!t)return false;if(/^[ㄱ-ㅎ]+$/.test(nq)){var c="";for(var i=0;i<t.length;i++){var k=t.charCodeAt(i);c+=(k>=0xAC00&&k<=0xD7A3)?HP_CHO[Math.floor((k-0xAC00)/588)]:t[i];}return c.indexOf(nq)>=0;}return t.indexOf(nq)>=0;}
+// 코스 c 가 검색어에 맞는지: 코스 이름·묶음·지점 이름(cpn 또는 cps[].n), 지나는 산 이름·인증 봉우리(sub)·지역(시·도 시·군)
+function hpCourseMatch(c,q,targets){if(!q)return true;if(hpMatch(c.name,q)||hpMatch(c.group,q)||hpMatch(c.family,q))return true;
+  var ns=c.cpn||(c.cps||[]).map(function(x){return x.n||x.name;});if(ns.some(function(n){return hpMatch(n,q);}))return true;
+  return (c.tg||[]).some(function(id){var t=targets[id];return t&&(hpMatch(t.n,q)||hpMatch(t.sub,q)||(t.seq&&hpMatch(t.seq+t.n,q))||hpMatch(t.sgg,q)||hpMatch((t.sido||"")+(t.sgg||""),q));});}
+// 트리 만들기 · courses: [{id,name,group,family,alts,archived,date,tg,pin}] (tg 가 없으면 연결 안 된 코스)
+// opts: {q:검색어, all:true 면 코스 없는 산도 보임}
+// 결과: {cats:[{n,progs:[P]}], unlinked:[c], archived:[c], n:보이는 코스 수}
+// P: {p,trail,courses(코스 수),plan(코스가 지나는 인증 지점 수),total, regions:[{n,mts:[M],plan,total}] 또는 null, mts:[M](시·도 없을 때), list:[{c,tg,first}](trail)}
+// M: {tid,t,cs:[c](선택지 묶음 포함),pin:true(고정만)}
+function hpCourseTree(courses,programs,targets,opts){opts=opts||{};var q=(opts.q||"").trim();
+  var act=[],arch=[];(courses||[]).forEach(function(c){if(c.archived)arch.push(c);else act.push(c);});
+  var fam={};hpFamilies(act).forEach(function(fs){fs.forEach(function(c){fam[c.id]=fs;});});
+  var vis=act.filter(function(c){return hpCourseMatch(c,q,targets);}),visId={};vis.forEach(function(c){visId[c.id]=1;});
+  var byT={};vis.forEach(function(c){(c.tg||[]).forEach(function(id){(byT[id]=byT[id]||[]).push(c);});});
+  var cats=[],linked={};
+  HP_CATS.forEach(function(cn){var ps=[];
+    programs.forEach(function(p){if(hpCat(p)!==cn)return;var trail=p.type==="trail",set={},cnt=0,plan=0;
+      p.targets.forEach(function(id){if(byT[id]){plan++;byT[id].forEach(function(c){if(!set[c.id]){set[c.id]=1;cnt++;}});}});
+      var P={p:p,trail:trail,courses:cnt,plan:plan,total:p.targets.length,regions:null,mts:null,list:null};
+      if(trail){P.list=Object.keys(set).map(function(cid){var c=vis.filter(function(x){return x.id===cid;})[0],tg=p.targets.filter(function(id){return (c.tg||[]).indexOf(id)>=0;});
+          return {c:c,tg:tg,first:p.targets.indexOf(tg[0])};}).sort(function(a,b){return a.first-b.first||String(a.c.name).localeCompare(String(b.c.name),"ko");});}
+      else{var seqd=p.targets.some(function(id){return targets[id]&&targets[id].seq;});
+        var mts=p.targets.filter(function(id){return targets[id]&&(byT[id]||(opts.all&&!q));}).map(function(id){
+          var cs=[],seen={};(byT[id]||[]).forEach(function(c){(fam[c.id]||[c]).forEach(function(x){if(!seen[x.id]&&visId[x.id]){seen[x.id]=1;cs.push(x);}});});
+          return {tid:id,t:targets[id],cs:cs,pin:cs.length>0&&cs.every(function(c){return c.pin;})};});
+        if(!seqd)mts.sort(function(a,b){return String(a.t.n).localeCompare(String(b.t.n),"ko");});
+        var sd={};p.targets.forEach(function(id){var t=targets[id];if(t&&t.sido)sd[t.sido]=1;});
+        if(Object.keys(sd).length>=3){var R={};mts.forEach(function(m){var k=m.t.sido||"기타";(R[k]=R[k]||[]).push(m);});
+          P.regions=Object.keys(R).sort(hpSidoCmp).map(function(k){return {n:k,mts:R[k],plan:R[k].filter(function(m){return m.cs.length;}).length,
+            total:p.targets.filter(function(id){return targets[id]&&targets[id].sido===k;}).length};});}
+        else P.mts=mts;}
+      Object.keys(set).forEach(function(k){linked[k]=1;});
+      if(cnt||(opts.all&&!q))ps.push(P);});
+    if(ps.length)cats.push({n:cn,progs:ps});});
+  var unl=vis.filter(function(c){return !linked[c.id];});
+  return {cats:cats,unlinked:unl,archived:arch.filter(function(c){return hpCourseMatch(c,q,targets);}),n:vis.length};}
+// 코스 c 가 들어가는 프로그램 이름들 (줄에 칩으로) · 지금 보고 있는 프로그램 id 는 빼고
+function hpCoursePgms(c,programs,skip){return programs.filter(function(p){return p.id!==skip&&(c.tg||[]).some(function(id){return p.targets.indexOf(id)>=0;});}).map(function(p){return p.n;});}
 // </hp-common>
 var crsGroupE=hpGroup,shortE=hpShort,famsE=hpFamilies,famTitleE=hpFamTitle;
-function indexEntry(o,path,by){return {id:o.id,name:o.name,updatedAt:o.updatedAt,path:path,km:o.checkpoints.length?o.checkpoints[o.checkpoints.length-1].km:0,by:by,
-  group:o.group||"",family:o.family||"",alts:(o.alts||[]).map(function(a){return a.id;}),archived:!!o.archived,date:o.date||""};}
+// index.json 항목 · tg(지나는 인증 지점)·pin·cpn(지점 이름)은 코스 트리용 (v8.5) — 산 목록(CAT)이 없으면 예전 값 유지
+function cpNamesE(cps){var o=[];(cps||[]).forEach(function(x){var n=String(x.name||x.n||"").replace(/\s*\(복귀\)$/,"").trim();if(n&&o.indexOf(n)<0)o.push(n);});return o;}
+function indexEntry(o,path,by,prev){var e={id:o.id,name:o.name,updatedAt:o.updatedAt,path:path,km:o.checkpoints.length?o.checkpoints[o.checkpoints.length-1].km:0,by:by,
+  group:o.group||"",family:o.family||"",alts:(o.alts||[]).map(function(a){return a.id;}),archived:!!o.archived,date:o.date||""};
+  if(CAT&&CAT.targets){var pts=o.track&&o.track.length?o.track:o.checkpoints.filter(function(x){return x.lat!=null;}).map(function(x){return [x.lat,x.lon];});var L=hpCourseLink(pts,o.group||"",CAT.targets);e.tg=L.tg;e.pin=L.pin;}
+  else if(prev){e.tg=prev.tg;e.pin=prev.pin;}
+  e.cpn=cpNamesE(o.checkpoints);return e;}
 function renderCps(){var p=$("p-cps");p.textContent="";if(!META){p.appendChild(h("p",{cls:"msg",text:"코스를 먼저 여세요."}));return;}
   p.appendChild(h("div",{cls:"row"},[h("button",{cls:mode&&mode.k==="addcp"?"on":"",text:"＋ 지도에서 지점 추가",onclick:startAddCp}),APP?h("button",{text:"📍 내 위치에 지점 추가",onclick:hereAdd}):null]));
   p.appendChild(h("p",{cls:"msg",text:"지점 표시를 끌어서 옮겨요. 선택한 지점의 빨간 손잡이를 끌면 도착 인정 반경이 바뀌어요. 봉우리(정상)로 표시한 지점은 반경이 빨간 원으로 보여요."}));
@@ -1035,7 +1108,8 @@ function upload2(){
   function step(retry){return gh("GET",path).then(function(r){var sha=r.ok&&r.j?r.j.sha:null;return ghPutJson(path,body,"코스 편집기: "+META.name,sha);})
     .then(function(){return ghGetJson(CS_DIR+"index.json");}).then(function(ix){var data=ix.missing?{format:"hikepace-cloud-courses",version:1,courses:[]}:ix.data;
       if(Array.isArray(data.deleted))data.deleted=data.deleted.filter(function(x){return x&&x.id!==META.id;});
-      data.courses=(data.courses||[]).filter(function(e){return e.id!==META.id;}).concat([indexEntry(toPublic(),path,"pc")])
+      var prevE=(data.courses||[]).filter(function(e){return e.id===META.id;})[0];
+      data.courses=(data.courses||[]).filter(function(e){return e.id!==META.id;}).concat([indexEntry(toPublic(),path,"pc",prevE)])
         .sort(function(a,b){return String(a.name).localeCompare(String(b.name),"ko");});data.updated=Date.now();
       return ghPutJson(CS_DIR+"index.json",data,"코스 편집기: 코스 목록",ix.sha).then(function(){LIST=LIST||{cloud:[],files:[]};LIST.cloud=data.courses;});})
     .catch(function(e){if(e.status===409&&!retry)return step(true);throw e;});}
@@ -1078,19 +1152,47 @@ function renderRepo(){var p=$("p-repo");p.textContent="";
     h("li",{text:"Permissions → Contents: Read and write"}),h("li",{text:"만든 github_pat_… 를 위 칸에 붙여넣기 (앱에 넣은 토큰을 써도 돼요)"})])]));
   if(!LIST)return;
   var emptyMsg=LIST.cloud.length?null:h("p",{cls:"msg",text:"아직 없어요. 새 앱(v5.9)을 열면 앱의 코스가 여기로 올라와요."});
-  // 앱 코스: 산 → 코스 묶음(대안끼리) → 선택지 (앱 '전체 코스'와 같은 정리)
-  function cRow(e,label,indent){var on=META&&META.id===e.id;return h("div",{style:"display:flex;gap:4px;align-items:stretch"+(indent?";padding-left:14px":"")},[h("button",{cls:"it"+(on?" on":""),style:"flex:1;min-width:0",onclick:function(){openCloud(e.path||CS_DIR+e.id+".json",e.name);}},
-    [h("span",{cls:"n",text:e.by==="pc"?"P":"A"}),h("span",null,[h("b",{text:label||e.name}),h("small",{text:(e.km!=null?(+e.km).toFixed(1)+"km · ":"")+(e.date?e.date.slice(5).replace("-","/")+" · ":"")+(e.updatedAt?new Date(e.updatedAt).toLocaleString("ko-KR"):"")+(e.by==="pc"?" · PC에서 고침":" · 앱에서 올림")})]),h("span",{cls:"r",text:"열기 ›"})]),h("button",{cls:"danger",title:"앱 코스에서 삭제 (앱에서도 지워져요)",style:"padding:4px 8px;font-size:12px",text:"삭제",onclick:function(){delCloud(e);}})]);}
-  var b1=h("div",{cls:"list"});
-  (function(){var all=LIST.cloud,act=all.filter(function(e){return !e.archived;}),arch=all.filter(function(e){return e.archived;}),G={},gk=[];
-    act.forEach(function(e){var g=crsGroupE(e);if(!G[g]){G[g]=[];gk.push(g);}G[g].push(e);});
-    gk.sort(function(a,b){return a.localeCompare(b);}).forEach(function(g){b1.appendChild(h("div",{style:"margin:8px 0 2px;font-weight:700"},["⛰ "+g,h("small",{cls:"msg",text:"  코스 "+G[g].length})]));famsE(G[g]).forEach(function(fs){
-      if(fs.length===1){b1.appendChild(cRow(fs[0],shortE(fs[0])));return;}var t=famTitleE(fs);
-      b1.appendChild(h("div",{style:"margin:4px 0 0 4px"},[h("b",{text:t}),h("small",{cls:"msg",text:"  선택지 "+fs.length})]));
-      fs.forEach(function(e){var lb=shortE(e);if(lb.indexOf(t)===0&&lb.length>t.length){var r=lb.slice(t.length).trim().replace(/^\((.*)\)$/,"$1").trim();if(r)lb=r;}b1.appendChild(cRow(e,"· "+lb,true));});});});
-    if(arch.length){b1.appendChild(h("div",{style:"margin:10px 0 2px;font-weight:700",text:"보관함 · "+arch.length}));arch.forEach(function(e){b1.appendChild(cRow(e));});}})();
+  // 앱 코스 (v8.5 코스 트리): 분류 › 프로그램 › [시·도] › 산 › 코스 · 대간·정맥·둘레길은 프로그램 › 코스 · 검색 · 보기(트리/최근 고친 순/다가오는 산행)
+  function cRow(e,label,indent,skip){var on=META&&META.id===e.id,pg=CAT?hpCoursePgms(e,CAT.programs||[],skip):[];
+    return h("div",{style:"display:flex;gap:4px;align-items:stretch"+(indent?";padding-left:"+(indent*14)+"px":"")},[h("button",{cls:"it"+(on?" on":""),style:"flex:1;min-width:0",onclick:function(){openCloud(e.path||CS_DIR+e.id+".json",e.name);}},
+    [h("span",{cls:"n",text:e.by==="pc"?"P":"A"}),h("span",null,[h("b",{text:label||e.name}),h("small",{text:(e.km!=null?(+e.km).toFixed(1)+"km · ":"")+(e.date?e.date.slice(5).replace("-","/")+" · ":"")+(e.updatedAt?new Date(e.updatedAt).toLocaleString("ko-KR"):"")+(e.by==="pc"?" · PC에서 고침":" · 앱에서 올림")}),
+      pg.length?h("small",{cls:"chips",text:"↔ "+pg.join(" · ")}):null]),h("span",{cls:"r",text:"열기 ›"})]),h("button",{cls:"danger",title:"앱 코스에서 삭제 (앱에서도 지워져요)",style:"padding:4px 8px;font-size:12px",text:"삭제",onclick:function(){delCloud(e);}})]);}
+  function famRows(box,list,indent,skip){famsE(list).forEach(function(fs){
+      if(fs.length===1){box.appendChild(cRow(fs[0],fs[0].name,indent,skip));return;}var t=famTitleE(fs);
+      box.appendChild(h("div",{style:"margin:4px 0 0 "+(indent*14+4)+"px"},[h("b",{text:t}),h("small",{cls:"msg",text:"  선택지 "+fs.length})]));
+      fs.forEach(function(e){var lb=shortE(e);if(lb.indexOf(t)===0&&lb.length>t.length){var r=lb.slice(t.length).trim().replace(/^\((.*)\)$/,"$1").trim();if(r)lb=r;}box.appendChild(cRow(e,"· "+lb,indent+1,skip));});});}
+  var b1=h("div",{cls:"list"}),RV=ls("ce.repoView")||"tree",tOpen={};try{tOpen=JSON.parse(ls("ce.treeOpen")||"{}");}catch(er){}
+  function fold(key,sum,dflt,q){var d=h("details",{cls:"tree"},[h("summary",null,sum)]);d.open=q?true:tOpen[key]!=null?!!tOpen[key]:dflt;
+    d.addEventListener("toggle",function(){if(q)return;tOpen[key]=d.open;ls("ce.treeOpen",JSON.stringify(tOpen));});return d;}
+  function drawList(){b1.textContent="";var q=(ls("ce.repoQ")||"").trim(),all=LIST.cloud;
+    if(RV!=="tree"||!CAT){var today=new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,10);
+      var L=all.filter(function(e){return hpCourseMatch(e,q,CAT?CAT.targets:{});});
+      if(RV==="soon")L=L.filter(function(e){return e.date&&e.date>=today;}).sort(function(a,b){return a.date.localeCompare(b.date);});
+      else L=L.slice().sort(function(a,b){return (b.updatedAt||0)-(a.updatedAt||0);});
+      if(!CAT&&RV==="tree")b1.appendChild(h("p",{cls:"msg",text:"산 목록을 못 받아서 최근 고친 순으로 보여요."}));
+      if(!L.length)b1.appendChild(h("p",{cls:"msg",text:RV==="soon"?"날짜가 정해진 다가오는 산행이 없어요.":"맞는 코스가 없어요."}));
+      L.forEach(function(e){b1.appendChild(cRow(e,(RV==="soon"?e.date.slice(5).replace("-","/")+" · ":"")+e.name+(e.archived?" (보관)":"")));});return;}
+    var showAll=ls("ce.treeAll")==="1",T=hpCourseTree(all,CAT.programs||[],CAT.targets,{q:q,all:showAll});
+    if(q)b1.appendChild(h("p",{cls:"msg",text:"'"+q+"' · 코스 "+T.n+"개"}));
+    T.cats.forEach(function(cg){b1.appendChild(h("div",{cls:"cathd",text:cg.n}));
+      cg.progs.forEach(function(P){var p=P.p,d=fold("p:"+p.id,[h("b",{text:"🏅 "+p.n}),h("small",{cls:"msg",text:"  코스 "+P.courses+" · 계획 "+P.plan+"/"+P.total})],P.courses>0&&P.courses<=12,q);
+        if(P.trail){if(!P.list.length)d.appendChild(h("p",{cls:"msg",text:"아직 코스가 없어요."}));
+          P.list.forEach(function(x){var nm=x.tg.map(function(id){return CAT.targets[id].n;});d.appendChild(cRow(x.c,x.c.name,1,p.id));
+            d.appendChild(h("div",{cls:"msg tgl",style:"padding-left:32px",text:"지나는 지점 "+nm.length+" · "+nm.slice(0,5).join(" · ")+(nm.length>5?" 외 "+(nm.length-5):"")}));});}
+        else{function mts(box,list,ind){list.forEach(function(m){var t=m.t;box.appendChild(h("div",{cls:"mthd",style:"padding-left:"+(ind*14)+"px"},[h("b",{text:"⛰ "+(t.seq?t.seq+" ":"")+t.n}),h("small",{cls:"msg",text:"  "+[t.sub,t.h?t.h+"m":"",t.sgg].filter(function(x){return x;}).join(" · ")+(m.pin?" · 정상 안 지남(묶음으로 고정)":"")+(m.cs.length?"":" · 코스 없음")})]));
+            famRows(box,m.cs,ind+1,p.id);});}
+          if(P.regions)P.regions.forEach(function(r){var rd=fold("r:"+p.id+":"+r.n,[h("b",{text:r.n}),h("small",{cls:"msg",text:"  코스 있는 산 "+r.plan+"/"+r.total})],true,q);mts(rd,r.mts,1);d.appendChild(rd);});
+          else mts(d,P.mts,1);}
+        b1.appendChild(d);});});
+    if(T.unlinked.length){var ud=fold("unlinked",[h("b",{text:"연결 안 된 코스"}),h("small",{cls:"msg",text:"  "+T.unlinked.length+" · 경로가 산 목록 인증 지점을 안 지나요 (묶음 이름을 산 이름으로 하면 그 산에 들어가요)"})],true,q);famRows(ud,T.unlinked,1);b1.appendChild(ud);}
+    if(T.archived.length){var ad=fold("arch",[h("b",{text:"보관함 · "+T.archived.length})],false,q);T.archived.forEach(function(e){ad.appendChild(cRow(e,e.name,1));});b1.appendChild(ad);}
+    if(!T.n&&q)b1.appendChild(h("p",{cls:"msg",text:"맞는 코스가 없어요."}));}
+  var qi=h("input",{type:"search",value:ls("ce.repoQ")||"",placeholder:"산·인증 봉우리·지점·코스·지역 (예: 천왕봉, ㅈㄹㅅ, 함양)"});qi.addEventListener("input",function(){ls("ce.repoQ",qi.value);drawList();});
+  var seg=h("div",{cls:"row seg"},[["tree","트리"],["recent","최근 고친 순"],["soon","다가오는 산행"]].map(function(x){return h("button",{cls:x[0]===RV?"on":"",text:x[1],onclick:function(){ls("ce.repoView",x[0]);renderRepo();}});})
+    .concat(RV==="tree"&&CAT?[cbx("코스 없는 산도",ls("ce.treeAll")==="1",function(v){ls("ce.treeAll",v?"1":"");drawList();})]:[]));
+  b1=h("div",{cls:"list"});var b1wrap=h("div",null,[qi,seg,b1]);drawList();
   // 앱 코스: 기본은 펼침 (접어 두면 이 PC에 기억)
-  var det1=h("details",{cls:"fold"},[h("summary",{text:"앱 코스 (cloud/courses) · "+LIST.cloud.length}),emptyMsg,b1]);
+  var det1=h("details",{cls:"fold"},[h("summary",{text:"앱 코스 (cloud/courses) · "+LIST.cloud.length}),emptyMsg,b1wrap]);
   det1.open=ls("ce.foldCloud")!=="closed";det1.addEventListener("toggle",function(){ls("ce.foldCloud",det1.open?"":"closed");});
   p.appendChild(det1);
   // Claude가 만든 코스: 자주 안 보니 기본은 접어 둠 (펼침 상태는 이 PC에 기억)
