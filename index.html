@@ -233,7 +233,7 @@ function exportTrack(){var out=[];
 function toPublic(){
   var o=Object.assign({},META.extra||{},{format:"hikepace-course",version:1,id:META.id,updatedAt:META.updatedAt||0,name:META.name,sport:META.sport||"hike",date:META.date||"",endTime:META.endTime||"",endLabel:META.endLabel||"",notes:META.notes||""});
   o.checkpoints=CP.map(function(c){var x={name:c.name,km:+(+c.km).toFixed(3),arrive:c.arrive||"",depart:c.depart||"",note:c.note||"",peak:!!c.peak,cutoff:c.cutoff||"",cutoffBy:c.cutoffBy==="depart"?"depart":"arrive",cutoffAction:c.cutoffAction||"",radiusKm:+(+c.radiusKm||0.15).toFixed(3)};
-    if(c.route==="fixed")x.route="fixed";if(c.cutoffAlt)x.cutoffAlt=c.cutoffAlt;if(c.up!=null&&isFinite(c.up)){x.up=Math.round(c.up);x.dn=Math.round(c.dn||0);}var p=cpLL(CP.indexOf(c));if(c.lat!=null&&isFinite(c.lat)){x.lat=r6(c.lat);x.lon=r6(c.lon);}else if(p){x.lat=r6(p[0]);x.lon=r6(p[1]);}return x;});
+    if(c.route==="fixed")x.route="fixed";if(c.cutoffAlt)x.cutoffAlt=c.cutoffAlt;if(c.exit){x.exit=c.exit;x.exitKm=+c.exitKm||0;}if(c.up!=null&&isFinite(c.up)){x.up=Math.round(c.up);x.dn=Math.round(c.dn||0);}var p=cpLL(CP.indexOf(c));if(c.lat!=null&&isFinite(c.lat)){x.lat=r6(c.lat);x.lon=r6(c.lon);}else if(p){x.lat=r6(p[0]);x.lon=r6(p[1]);}return x;});
   o.track=exportTrack();delete o.rev;return o;}
 function problems(){var e=[],w=[];
   if(!META)return {e:["코스가 없어요"],w:w};
@@ -253,7 +253,7 @@ function loadCourse(o,src){ALT_CACHE={};if(NW){NW=null;gNew.clearLayers();setMod
   var extra={};for(var k in o){if(["format","version","id","updatedAt","name","sport","date","endTime","endLabel","notes","checkpoints","track"].indexOf(k)<0)extra[k]=o[k];}
   META={id:String(o.id||newId()),updatedAt:+o.updatedAt||0,name:String(o.name||"새 코스"),sport:o.sport||"hike",date:o.date||"",endTime:o.endTime||"",endLabel:o.endLabel||"",notes:o.notes||"",extra:extra,src:src||""};
   CP=o.checkpoints.map(function(x){return {name:String(x.name||"지점"),km:+x.km||0,arrive:normT(x.arrive)||"",depart:normT(x.depart)||"",note:x.note||"",peak:!!x.peak,radiusKm:+x.radiusKm>0?+x.radiusKm:0.15,
-    cutoff:normT(x.cutoff)||"",cutoffBy:x.cutoffBy==="depart"?"depart":"arrive",cutoffAction:x.cutoffAction||"",cutoffAlt:String(x.cutoffAlt||""),route:x.route==="fixed"?"fixed":"",up:x.up!=null&&isFinite(+x.up)?+x.up:null,dn:x.dn!=null&&isFinite(+x.dn)?+x.dn:null,lat:x.lat!=null&&isFinite(+x.lat)?+x.lat:null,lon:x.lon!=null&&isFinite(+x.lon)?+x.lon:null};});
+    cutoff:normT(x.cutoff)||"",cutoffBy:x.cutoffBy==="depart"?"depart":"arrive",cutoffAction:x.cutoffAction||"",cutoffAlt:String(x.cutoffAlt||""),exit:String(x.exit||"").trim(),exitKm:+x.exitKm>0?+x.exitKm:0,route:x.route==="fixed"?"fixed":"",up:x.up!=null&&isFinite(+x.up)?+x.up:null,dn:x.dn!=null&&isFinite(+x.dn)?+x.dn:null,lat:x.lat!=null&&isFinite(+x.lat)?+x.lat:null,lon:x.lon!=null&&isFinite(+x.lon)?+x.lon:null};});
   CP.sort(function(a,b){return a.km-b.km;});
   SEG=buildSegs(calibrate(Array.isArray(o.track)?o.track:[],CP));HOW=SEG.map(function(){return "";});
   undoS=[];redoS=[];sel={t:null,i:-1};lastSaved=null;setDirty(false);ROUTE_SIG=segLens();
@@ -1032,7 +1032,7 @@ function renderCps(){var p=$("p-cps");p.textContent="";if(!META){p.appendChild(h
   var box=h("div",{cls:"list"});
   CP.forEach(function(c,i){var on=sel.t==="cp"&&sel.i===i;
     box.appendChild(h("button",{cls:"it"+(on?" on":""),onclick:function(){if(on){sel={t:null,i:-1};drawAll();renderPanels();return;}select("cp",i);var q=cpLL(i);if(q)map.panTo(q);}},[h("span",{cls:"n"+(c.peak?" pk":""),text:String(i+1)}),
-      h("span",null,[h("b",{text:c.name}),h("small",{text:(+c.km).toFixed(2)+"km · "+(c.arrive||"--:--")+(c.depart?"~"+c.depart:"")+(segKmh(i)?" · 예상 "+segKmh(i)+"km/h":"")+(i&&c.up!=null?" · +"+Math.round(c.up)+"/−"+Math.round(c.dn||0)+"m":"")+(c.cutoff?" · 컷오프 "+c.cutoff:"")})]),h("span",{cls:"r",text:Math.round((+c.radiusKm||0.15)*1000)+"m"+(c.lat==null?" · 좌표 없음":"")})]));
+      h("span",null,[h("b",{text:c.name}),h("small",{text:(+c.km).toFixed(2)+"km · "+(c.arrive||"--:--")+(c.depart?"~"+c.depart:"")+(segKmh(i)?" · 예상 "+segKmh(i)+"km/h":"")+(i&&c.up!=null?" · +"+Math.round(c.up)+"/−"+Math.round(c.dn||0)+"m":"")+(c.cutoff?" · 컷오프 "+c.cutoff:"")+(c.exit?" · ⇣ 하산 "+c.exit+(c.exitKm?" "+(+c.exitKm).toFixed(1)+"km":""):"")})]),h("span",{cls:"r",text:Math.round((+c.radiusKm||0.15)*1000)+"m"+(c.lat==null?" · 좌표 없음":"")})]));
     if(on)box.appendChild(cpForm(i));});
   p.appendChild(box);}
 function cpForm(i){var c=CP[i],f=h("div",{cls:"box"});
@@ -1049,6 +1049,8 @@ function cpForm(i){var c=CP[i],f=h("div",{cls:"box"});
   f.appendChild(h("div",{cls:"g3"},[inp("컷오프",c.cutoff,set("cutoff","t"),{type:"time"}),h("label",{cls:"f"},["기준",(function(){var s=h("select",null,[h("option",{value:"arrive",text:"도착"}),h("option",{value:"depart",text:"출발"})]);s.value=c.cutoffBy||"arrive";s.onchange=function(){push();c.cutoffBy=s.value;};return s;})()]),inp("컷오프 행동",c.cutoffAction,set("cutoffAction"))]));
   if(altList().length){var cs=h("select",null,[h("option",{value:"",text:"없음"})].concat(altList().map(function(a){var o=ALT_CACHE[a.id];return h("option",{value:a.id,text:a.label||(o?o.name:a.id)});})));cs.value=c.cutoffAlt||"";
     cs.onchange=function(){push();c.cutoffAlt=cs.value;renderPanels();};f.appendChild(h("label",{cls:"f"},["컷오프 넘기면 권할 대안 코스",cs]));}
+  // 중간 하산 지점 (v8.6): 여기서 끝낼 때 내려가는 역·정류장과 도보 거리 → 앱 '하산 판단'
+  f.appendChild(h("div",{cls:"g2"},[inp("하산 가능 (내려가는 역·정류장)",c.exit,set("exit"),{placeholder:"예: 부평삼거리역"}),inp("도보 km",c.exitKm||"",function(v){push();c.exitKm=Math.max(0,+v||0);drawAll();renderPanels();},{type:"number",step:"0.1",min:"0"})]));
   if(APP)f.appendChild(h("div",{cls:"row"},[h("button",{cls:"pri",text:"📍 여기로 옮기기",title:"지금 내 위치(GPS)로 이 지점을 옮겨요",onclick:function(){hereMove(i);}})]));
   f.appendChild(h("div",{cls:"row"},[h("button",{text:"경로에 붙이기",title:"지점을 가장 가까운 경로 위로 옮겨요",onclick:function(){var q=cpLL(i),best=null;SEG.forEach(function(s){var r=s.length>1?nearestOn(s,q,1):null;if(r&&(!best||r.d<best.d))best=r;});if(best)moveCp(i,best.ll);}}),
     h("button",{text:"경로 끝을 지점으로",title:"앞뒤 구간 끝점을 이 지점 좌표로 맞춰요",onclick:function(){var q=cpLL(i);if(!q)return;push();moveCp(i,q);}}),
