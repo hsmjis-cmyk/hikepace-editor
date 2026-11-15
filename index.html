@@ -1013,6 +1013,57 @@ function hpCourseTree(courses,programs,targets,opts){opts=opts||{};var q=(opts.q
   return {cats:cats,unlinked:unl,archived:arch.filter(function(c){return hpCourseMatch(c,q,targets);}),n:vis.length};}
 // 코스 c 가 들어가는 프로그램 이름들 (줄에 칩으로) · 지금 보고 있는 프로그램 id 는 빼고
 function hpCoursePgms(c,programs,skip){return programs.filter(function(p){return p.id!==skip&&(c.tg||[]).some(function(id){return p.targets.indexOf(id)>=0;});}).map(function(p){return p.n;});}
+// ===== 정맥 이어 걷기 (v8.7): 정맥 전체 길(line) 위에서 그날 출발·도착 지점을 골라 코스를 만든다 =====
+// line: {format:"hikepace-line",id,prog,name,track:[[lat,lon,km]],points:[{name,km,lat,lon,up,dn,peak,rest,radiusKm,exit,exitKm,ap:{pts:[[lat,lon]](능선→역),km,up,dn},access,secStart,secEnd,src}],sections:[{id,name,s,e}]}
+// · 하산 지점(exit+ap)에서 시작·끝나면 역·정류장 ↔ 능선 길을 코스에 넣는다(access 는 그 자리가 역·도로라 따로 걷지 않음)
+// · 시간 = 고도 모델(hpModelMin, 마진 포함) · 역·정류장 길은 도로 최소 속도 · 휴식 = 원래 구간 코스에서 쉬던 분(rest)
+function hpHMs(m){m=Math.round(m);m=((m%1440)+1440)%1440;return ("0"+Math.floor(m/60)).slice(-2)+":"+("0"+(m%60)).slice(-2);}
+function hpParseHM(s){var m=String(s||"").match(/^(\d{1,2}):(\d{2})$/);return m?+m[1]*60+ +m[2]:540;}
+function hpLineUseAp(p){return !!(p&&p.exit&&p.ap&&p.ap.pts&&p.ap.pts.length>1&&!p.access);}
+// 지점 목록만 (트랙 없이 빠르게) · 끝에 요약
+function hpLineCps(L,s,e,o){o=o||{};var P=L.points,pace=o.pace,cps=[],t=hpParseHM(o.start),km=0,move=0,rest=0,up=0,dn=0,S=P[s],Ep=P[e];
+  function push(x,legKm,lu,ld,road,rst){if(cps.length){var m=hpModelMin(legKm,lu,ld,pace,road);t+=m;move+=m;km+=legKm;up+=lu||0;dn+=ld||0;}
+    var c={name:x.name,km:+km.toFixed(3),arriveM:t,up:cps.length?Math.round(lu||0):undefined,dn:cps.length?Math.round(ld||0):undefined,lat:x.lat,lon:x.lon,peak:!!x.peak,radiusKm:x.radiusKm||0.05,lp:x.lp,note:x.note||""};
+    if(x.exit&&x.lp!=null&&x.lp!==s&&x.lp!==e){c.exit=x.exit;c.exitKm=x.exitKm||0;}
+    if(rst){c.departM=t+rst;t+=rst;rest+=rst;}cps.push(c);}
+  var apS=o.approach!==false&&!o.noApStart&&hpLineUseAp(S),apE=o.approach!==false&&hpLineUseAp(Ep);
+  if(apS){var q=S.ap.pts[S.ap.pts.length-1];push({name:S.exit+" (출발)",lat:q[0],lon:q[1],radiusKm:0.1,lp:null,note:S.name+"까지 "+S.ap.km.toFixed(1)+"km 올라감"});}
+  for(var i=s;i<=e;i++){var x=Object.assign({},P[i],{lp:i});var legKm=i===s?(apS?S.ap.km:0):P[i].km-P[i-1].km;
+    var lu=i===s?(apS?S.ap.dn:0):P[i].up,ld=i===s?(apS?S.ap.up:0):P[i].dn;
+    if(i===s&&!apS){push(x,0,0,0,false,0);continue;}
+    push(x,legKm,lu,ld,i===s,(i===s||(i===e&&!apE))?0:(+P[i].rest||0));}
+  if(apE){var q2=Ep.ap.pts[Ep.ap.pts.length-1];push({name:Ep.exit,lat:q2[0],lon:q2[1],radiusKm:0.1,lp:null,note:Ep.name+"에서 "+Ep.ap.km.toFixed(1)+"km 내려옴"},Ep.ap.km,Ep.ap.up,Ep.ap.dn,true,0);}
+  var t0=hpParseHM(o.start);
+  return {cps:cps,km:km,move:move,rest:rest,total:t-t0,finish:t,up:up,dn:dn,apS:apS,apE:apE};}
+// 그날 코스 (hikepace-course 형식) · o: {start:"09:00", date, pace, id}
+function hpLineDay(L,s,e,o){o=o||{};var R=hpLineCps(L,s,e,o),P=L.points,tr=[],km=0;
+  function add(p){if(tr.length){var q=tr[tr.length-1];km+=hpDistM(q,p)/1000;}tr.push([+p[0].toFixed(6),+p[1].toFixed(6),+km.toFixed(3)]);}
+  if(R.apS)P[s].ap.pts.slice().reverse().forEach(add);
+  var k0=P[s].km,k1=P[e].km;add([P[s].lat,P[s].lon]);L.track.forEach(function(p){if(p[2]>k0+1e-6&&p[2]<k1-1e-6)add(p);});add([P[e].lat,P[e].lon]);
+  if(R.apE)P[e].ap.pts.forEach(add);
+  // 지점 km 를 트랙 위 거리로 다시 맞춤 (트랙에서 가장 가까운 점, 순서대로)
+  var j=0;R.cps.forEach(function(c){var best=j,bd=1e9;for(var k=j;k<tr.length;k++){var d=hpDistM([c.lat,c.lon],tr[k]);if(d<bd){bd=d;best=k;}if(d<5)break;}j=best;c.km=tr[best][2];});
+  var map=R.cps.map(function(c){return c.lp==null?-1:c.lp;});
+  var name=L.name+" 이어걷기 "+P[s].name.replace(/\s*\(.*?\)$/,"")+"→"+(R.apE?P[e].exit:P[e].name.replace(/\s*\(.*?\)$/,""));
+  var pl={move:R.move,rest:R.rest,total:R.total,km:R.cps[R.cps.length-1].km};
+  var notes=L.name+" 이어 걷기 (앱이 만든 그날 코스)\n"+(R.apS?"출발: "+P[s].exit+" → "+P[s].name+" "+P[s].ap.km.toFixed(1)+"km 올라감\n":"")+(R.apE?"하산: "+P[e].name+" → "+P[e].exit+" "+P[e].ap.km.toFixed(1)+"km\n":"")+
+    "이동 "+hpHM(pl.move)+" + 휴식 "+hpHM(pl.rest)+" = 총 "+hpHM(pl.total)+" · "+pl.km.toFixed(1)+"km · 전체 평균 "+hpKmh(pl.km,pl.total)+"km/h (휴식 포함)\n시간: 고도 모델(마진 포함) · 휴식은 원래 구간 코스 기준";
+  return {format:"hikepace-course",version:1,id:o.id||(L.id+"-walk-"+Date.now().toString(36)),updatedAt:Date.now(),name:name,sport:"hike",date:o.date||"",endTime:"",endLabel:"",notes:notes,group:"",family:"",
+    planBy:"model",plan:{pace:hpPace(o.pace),line:L.id},line:{id:L.id,s:s,e:e,map:map},
+    checkpoints:R.cps.map(function(c,i){var x={name:c.name,km:c.km,arrive:hpHMs(c.arriveM),depart:c.departM!=null&&i<R.cps.length-1?hpHMs(c.departM):"",note:c.note,peak:c.peak,radiusKm:c.radiusKm,lat:c.lat,lon:c.lon};
+      if(i>0){x.up=c.up||0;x.dn=c.dn||0;}if(c.exit){x.exit=c.exit;x.exitKm=c.exitKm;}return x;}),track:tr};}
+// 출발 s 에서 갈 수 있는 도착 후보 (하산 지점·역/도로 지점·구간 끝·정맥 끝) + 시간·거리
+function hpLineCands(L,s,o){var P=L.points,out=[];for(var e=s+1;e<P.length;e++){var p=P[e];if(!(p.exit||p.access||p.secEnd||e===P.length-1))continue;
+    var R=hpLineCps(L,s,e,o);out.push({e:e,p:p,km:R.cps[R.cps.length-1].km,ridgeKm:p.km-P[s].km,move:R.move,rest:R.rest,total:R.total,finish:R.finish,apE:R.apE,secEnd:p.secEnd||""});}
+  return out;}
+// 추천: 예산(분 또는 km) 안에서 가장 먼 곳 · 그 근처(3km 안)에 구간 끝(교통 고려해서 나눈 곳)이 있으면 그쪽
+function hpLinePick(cands,fit){var ok=cands.filter(fit);if(!ok.length)return null;var far=ok[ok.length-1];
+  var sec=ok.filter(function(c){return c.secEnd&&far.ridgeKm-c.ridgeKm<=3;});return sec.length?sec[sec.length-1]:far;}
+// 이 정맥에서 어떤 구간 코스(id)·그날 코스의 지점 i 가 정맥 지점 몇 번인지
+function hpLinePointOf(L,course,i){var cps=course.cps||course.checkpoints||[];
+  if(course.line&&course.line.id===L.id&&course.line.map&&course.line.map.length===cps.length)return course.line.map[i]!=null?course.line.map[i]:-1;
+  if(course.line&&course.line.id===L.id){var x=cps[i];if(!x||x.lat==null)return -1;var lo=course.line.s,hi=course.line.e,best=-1,bd=60;for(var q=lo;q<=hi&&q<L.points.length;q++){var d=hpDistM([x.lat,x.lon],[L.points[q].lat,L.points[q].lon]);if(d<bd){bd=d;best=q;}}return best;}
+  var key=course.id+"#"+i;for(var k=0;k<L.points.length;k++)if(L.points[k].src===key||(L.points[k].src2||[]).indexOf(key)>=0)return k;return -1;}
 // </hp-common>
 var crsGroupE=hpGroup,shortE=hpShort,famsE=hpFamilies,famTitleE=hpFamTitle;
 // index.json 항목 · tg(지나는 인증 지점)·pin·cpn(지점 이름)은 코스 트리용 (v8.5) — 산 목록(CAT)이 없으면 예전 값 유지
@@ -1094,7 +1145,7 @@ function ghPutJson(path,obj,msg,sha){return gh("PUT",path,Object.assign({message
 function connect(){REPO_MSG="불러오는 중…";renderRepo();
   return Promise.all([ghGetJson(CS_DIR+"index.json"),gh("GET","courses"),ghGetJson(CAT_PATH)]).then(function(res){
     var idx=res[0].missing?[]:(res[0].data.courses||[]);var files=res[1].ok&&Array.isArray(res[1].j)?res[1].j.filter(function(f){return /\.json$/i.test(f.name);}):[];
-    LIST={cloud:idx,files:files};if(!res[2].missing)setCatalog(res[2].data,res[2].sha);
+    LIST={cloud:idx,files:files,lines:res[0].missing?[]:(res[0].data.lines||[])};if(!res[2].missing)setCatalog(res[2].data,res[2].sha);
     if(!RECS)loadRecs();loadPace().then(function(){renderPanels();});
     REPO_MSG="연결됨 · 앱 코스 "+idx.length+"개 · 저장소 courses 폴더 "+files.length+"개"+(CAT?" · 산 목록 "+(CAT.updated||""):"");renderRepo();renderCourse();})
   .catch(function(e){REPO_MSG="연결 실패: "+e.message;renderRepo();});}
@@ -1178,7 +1229,9 @@ function renderRepo(){var p=$("p-repo");p.textContent="";
     if(q)b1.appendChild(h("p",{cls:"msg",text:"'"+q+"' · 코스 "+T.n+"개"}));
     T.cats.forEach(function(cg){b1.appendChild(h("div",{cls:"cathd",text:cg.n}));
       cg.progs.forEach(function(P){var p=P.p,d=fold("p:"+p.id,[h("b",{text:"🏅 "+p.n}),h("small",{cls:"msg",text:"  코스 "+P.courses+" · 계획 "+P.plan+"/"+P.total})],P.courses>0&&P.courses<=12,q);
-        if(P.trail){if(!P.list.length)d.appendChild(h("p",{cls:"msg",text:"아직 코스가 없어요."}));
+        if(P.trail){var ln=(LIST.lines||[]).filter(function(x){return x.prog===p.id;})[0];
+          if(ln)d.appendChild(h("p",{cls:"msg",style:"padding-left:14px",text:"🧭 정맥 전체 길 "+ln.km+"km (cloud/lines/"+ln.id+".json) · 앱 '이어서 하기'에서 그날 코스를 만들 때 써요. 구간 코스를 고친 뒤에는 python3 tools/build_line.py 로 다시 만들어요."}));
+          if(!P.list.length)d.appendChild(h("p",{cls:"msg",text:"아직 코스가 없어요."}));
           P.list.forEach(function(x){var nm=x.tg.map(function(id){return CAT.targets[id].n;});d.appendChild(cRow(x.c,x.c.name,1,p.id));
             d.appendChild(h("div",{cls:"msg tgl",style:"padding-left:32px",text:"지나는 지점 "+nm.length+" · "+nm.slice(0,5).join(" · ")+(nm.length>5?" 외 "+(nm.length-5):"")}));});}
         else{function mts(box,list,ind){list.forEach(function(m){var t=m.t;box.appendChild(h("div",{cls:"mthd",style:"padding-left:"+(ind*14)+"px"},[h("b",{text:"⛰ "+(t.seq?t.seq+" ":"")+t.n}),h("small",{cls:"msg",text:"  "+[t.sub,t.h?t.h+"m":"",t.sgg].filter(function(x){return x;}).join(" · ")+(m.pin?" · 정상 안 지남(묶음으로 고정)":"")+(m.cs.length?"":" · 코스 없음")})]));
