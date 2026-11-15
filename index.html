@@ -907,6 +907,8 @@ function hpAltId(a){return typeof a==="string"?a:(a&&a.id);}
 function hpFamilies(list){var ids={},par={};list.forEach(function(c){ids[c.id]=1;par[c.id]=c.id;});
   function f(x){while(par[x]!==x){par[x]=par[par[x]];x=par[x];}return x;}
   list.forEach(function(c){(c.alts||[]).forEach(function(a){a=hpAltId(a);if(ids[a]){var r1=f(c.id),r2=f(a);if(r1!==r2)par[r2]=r1;}});});
+  // 같은 family(묶음 이름) 값끼리도 한 묶음 (v8.9: 올레 3A/3B 등 alts 를 안 적어도 됨)
+  var byF={};list.forEach(function(c){if(!c.family)return;var k=String(c.family).trim();if(byF[k]){var r1=f(byF[k]),r2=f(c.id);if(r1!==r2)par[r2]=r1;}else byF[k]=c.id;});
   var fam={},order=[];list.forEach(function(c){var r=f(c.id);if(!fam[r]){fam[r]=[];order.push(r);}fam[r].push(c);});
   return order.map(function(r){return fam[r];});}
 // 묶음 이름: family 값이 있으면 그것, 없으면 짧은 이름들의 공통 앞부분(2자 이상), 그것도 없으면 첫 코스 이름
@@ -1064,6 +1066,31 @@ function hpLinePointOf(L,course,i){var cps=course.cps||course.checkpoints||[];
   if(course.line&&course.line.id===L.id&&course.line.map&&course.line.map.length===cps.length)return course.line.map[i]!=null?course.line.map[i]:-1;
   if(course.line&&course.line.id===L.id){var x=cps[i];if(!x||x.lat==null)return -1;var lo=course.line.s,hi=course.line.e,best=-1,bd=60;for(var q=lo;q<=hi&&q<L.points.length;q++){var d=hpDistM([x.lat,x.lon],[L.points[q].lat,L.points[q].lon]);if(d<bd){bd=d;best=q;}}return best;}
   var key=course.id+"#"+i;for(var k=0;k<L.points.length;k++)if(L.points[k].src===key||(L.points[k].src2||[]).indexOf(key)>=0)return k;return -1;}
+// ===== 방향 바꾸기 (v8.9): 코스(hikepace-course 공개 형식)를 역방향으로 · 한 번 더 하면 정방향 =====
+// 지점 순서·km(전체-km)·오르내림(구간별로 맞바꿈)·트랙을 뒤집고, 시각은 구간 이동 시간 × (역방향 고도 모델 ÷ 정방향 고도 모델)로 보정
+// 휴식은 같은 지점에 그대로, 출발 시각은 그대로. 컷오프는 방향마다 달라서 뺌. dir: "r" = 역방향
+function hpReverseCourse(o,pace){var cps=o.checkpoints||[],n=cps.length;if(n<2)return o;var tot=+cps[n-1].km||0;
+  function mm(s){return s?hpParseHM(s):null;}
+  var legs=[],rests=[];for(var j=0;j<n;j++){var a=mm(cps[j].arrive),d=cps[j].depart?mm(cps[j].depart):a;rests.push(j>0&&j<n-1&&d!=null&&a!=null?Math.max(0,d-a):0);
+    if(j>0){var pd=cps[j-1].depart?mm(cps[j-1].depart):mm(cps[j-1].arrive);legs.push(a!=null&&pd!=null?Math.max(0,a-pd):0);}}
+  var t=mm(cps[0].arrive)||540,out=[];
+  for(var k=0;k<n;k++){var j2=n-1-k,x=cps[j2],y={};for(var key in x)y[key]=x[key];
+    ["cutoff","cutoffBy","cutoffAction","cutoffAlt","depart","up","dn","route"].forEach(function(q){delete y[q];});
+    y.km=+(tot-(+x.km||0)).toFixed(3);
+    if(k>0){var orig=cps[j2+1],up=+orig.dn||0,dn=+orig.up||0,lk=(+orig.km||0)-(+x.km||0),m0=legs[j2],
+        f=hpModelMin(lk,+orig.up||0,+orig.dn||0,pace),f2=hpModelMin(lk,up,dn,pace),m=f>0?m0*f2/f:m0;
+      if(orig.up!=null||orig.dn!=null){y.up=Math.round(up);y.dn=Math.round(dn);}t+=m;}
+    y.arrive=hpHMs(t);var r=k>0&&k<n-1?rests[j2]:0;if(r){t+=r;y.depart=hpHMs(t);}out.push(y);}
+  var res={};for(var kk in o)res[kk]=o[kk];res.checkpoints=out;
+  res.track=(o.track||[]).slice().reverse().map(function(p){var q=p.slice();q[2]=+(tot-(+p[2]||0)).toFixed(3);return q;});
+  res.dir=o.dir==="r"?undefined:"r";if(!res.dir)delete res.dir;
+  res.name=String(o.name||"").replace(/\s*\(역방향\)$/,"")+(res.dir?" (역방향)":"");
+  return res;}
+// ===== 코스 단위 완주 프로그램 (v8.9, 제주 올레 등): program.items = [{id,n,t:[스탬프 지점 id…]}] · 항목의 지점을 모두 인증하면 완주 =====
+function hpItems(p){return Array.isArray(p&&p.items)?p.items:null;}
+// done: {지점 id: {d,…}} → 항목별 {item, done(bool), got(인증한 지점 수), d(마지막 인증 날짜)}
+function hpItemState(p,done){return (hpItems(p)||[]).map(function(it){var got=0,d="";(it.t||[]).forEach(function(tid){var x=done&&done[tid];if(x){got++;if(x.d>d)d=x.d;}});
+  return {item:it,got:got,total:(it.t||[]).length,done:got>0&&got===(it.t||[]).length,d:d};});}
 // </hp-common>
 var crsGroupE=hpGroup,shortE=hpShort,famsE=hpFamilies,famTitleE=hpFamTitle;
 // index.json 항목 · tg(지나는 인증 지점)·pin·cpn(지점 이름)은 코스 트리용 (v8.5) — 산 목록(CAT)이 없으면 예전 값 유지
