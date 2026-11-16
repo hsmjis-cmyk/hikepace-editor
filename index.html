@@ -233,7 +233,7 @@ function exportTrack(){var out=[];
 function toPublic(){
   var o=Object.assign({},META.extra||{},{format:"hikepace-course",version:1,id:META.id,updatedAt:META.updatedAt||0,name:META.name,sport:META.sport||"hike",date:META.date||"",endTime:META.endTime||"",endLabel:META.endLabel||"",notes:META.notes||""});
   o.checkpoints=CP.map(function(c){var x={name:c.name,km:+(+c.km).toFixed(3),arrive:c.arrive||"",depart:c.depart||"",note:c.note||"",peak:!!c.peak,cutoff:c.cutoff||"",cutoffBy:c.cutoffBy==="depart"?"depart":"arrive",cutoffAction:c.cutoffAction||"",radiusKm:+(+c.radiusKm||0.15).toFixed(3)};
-    if(c.route==="fixed")x.route="fixed";if(c.cutoffAlt)x.cutoffAlt=c.cutoffAlt;if(c.exit){x.exit=c.exit;x.exitKm=+c.exitKm||0;}if(c.up!=null&&isFinite(c.up)){x.up=Math.round(c.up);x.dn=Math.round(c.dn||0);}var p=cpLL(CP.indexOf(c));if(c.lat!=null&&isFinite(c.lat)){x.lat=r6(c.lat);x.lon=r6(c.lon);}else if(p){x.lat=r6(p[0]);x.lon=r6(p[1]);}return x;});
+    if(c.route==="fixed")x.route="fixed";if(c.cutoffAlt)x.cutoffAlt=c.cutoffAlt;if(c.exit){x.exit=c.exit;x.exitKm=+c.exitKm||0;if(c.exitLast)x.exitLast=c.exitLast;if(c.exitNote)x.exitNote=c.exitNote;}if(+c.rough>1)x.rough=+c.rough;if(c.up!=null&&isFinite(c.up)){x.up=Math.round(c.up);x.dn=Math.round(c.dn||0);}var p=cpLL(CP.indexOf(c));if(c.lat!=null&&isFinite(c.lat)){x.lat=r6(c.lat);x.lon=r6(c.lon);}else if(p){x.lat=r6(p[0]);x.lon=r6(p[1]);}return x;});
   o.track=exportTrack();delete o.rev;return o;}
 function problems(){var e=[],w=[];
   if(!META)return {e:["코스가 없어요"],w:w};
@@ -253,7 +253,7 @@ function loadCourse(o,src){ALT_CACHE={};if(NW){NW=null;gNew.clearLayers();setMod
   var extra={};for(var k in o){if(["format","version","id","updatedAt","name","sport","date","endTime","endLabel","notes","checkpoints","track"].indexOf(k)<0)extra[k]=o[k];}
   META={id:String(o.id||newId()),updatedAt:+o.updatedAt||0,name:String(o.name||"새 코스"),sport:o.sport||"hike",date:o.date||"",endTime:o.endTime||"",endLabel:o.endLabel||"",notes:o.notes||"",extra:extra,src:src||""};
   CP=o.checkpoints.map(function(x){return {name:String(x.name||"지점"),km:+x.km||0,arrive:normT(x.arrive)||"",depart:normT(x.depart)||"",note:x.note||"",peak:!!x.peak,radiusKm:+x.radiusKm>0?+x.radiusKm:0.15,
-    cutoff:normT(x.cutoff)||"",cutoffBy:x.cutoffBy==="depart"?"depart":"arrive",cutoffAction:x.cutoffAction||"",cutoffAlt:String(x.cutoffAlt||""),exit:String(x.exit||"").trim(),exitKm:+x.exitKm>0?+x.exitKm:0,route:x.route==="fixed"?"fixed":"",up:x.up!=null&&isFinite(+x.up)?+x.up:null,dn:x.dn!=null&&isFinite(+x.dn)?+x.dn:null,lat:x.lat!=null&&isFinite(+x.lat)?+x.lat:null,lon:x.lon!=null&&isFinite(+x.lon)?+x.lon:null};});
+    cutoff:normT(x.cutoff)||"",cutoffBy:x.cutoffBy==="depart"?"depart":"arrive",cutoffAction:x.cutoffAction||"",cutoffAlt:String(x.cutoffAlt||""),exit:String(x.exit||"").trim(),exitKm:+x.exitKm>0?+x.exitKm:0,exitLast:normT(x.exitLast)||"",exitNote:String(x.exitNote||"").trim(),rough:+x.rough>1?+x.rough:0,route:x.route==="fixed"?"fixed":"",up:x.up!=null&&isFinite(+x.up)?+x.up:null,dn:x.dn!=null&&isFinite(+x.dn)?+x.dn:null,lat:x.lat!=null&&isFinite(+x.lat)?+x.lat:null,lon:x.lon!=null&&isFinite(+x.lon)?+x.lon:null};});
   CP.sort(function(a,b){return a.km-b.km;});
   SEG=buildSegs(calibrate(Array.isArray(o.track)?o.track:[],CP));HOW=SEG.map(function(){return "";});
   undoS=[];redoS=[];sel={t:null,i:-1};lastSaved=null;setDirty(false);ROUTE_SIG=segLens();
@@ -700,7 +700,7 @@ function recalcModel(opts){if(!META)return Promise.resolve(false);opts=opts||{};
     for(var i=1;i<CP.length;i++){var c=CP[i],el=sam[i-1].map(function(p){return ELE[eleKey(p)];});if(!el.length||el.some(function(e){return e==null;}))miss++;
       var cl=hpClimb(eleFix(el));c.up=Math.round(cl.up);c.dn=Math.round(cl.dn);
       if(opts.times){var rest=normT(c.depart)&&normT(c.arrive)&&i<CP.length-1?Math.max(0,hm(c.depart)-hm(c.arrive)):0;
-        t+=Math.max(1,Math.round(hpModelMin(c.km-CP[i-1].km,cl.up,cl.dn,PACE,CP[i-1].route==="fixed")));c.arrive=fmt(t);if(rest>0){c.depart=fmt(t+rest);t+=rest;}else c.depart="";}}
+        t+=Math.max(1,Math.round(hpLegMin(c.km-CP[i-1].km,cl.up,cl.dn,PACE,CP[i-1].route==="fixed",+c.rough>1?+c.rough:0,META&&META.extra&&META.extra.plan&&META.extra.plan.winter)));c.arrive=fmt(t);if(rest>0){c.depart=fmt(t+rest);t+=rest;}else c.depart="";}}
     if(!META.extra)META.extra={};
     if(opts.times){META.extra.planBy="model";META.extra.plan={pace:hpPace(PACE),ele:ELE_SRC,at:Date.now()};}
     ROUTE_SIG=segLens();drawAll();renderPanels();
@@ -923,8 +923,8 @@ function hpDur(m){m=Math.round(Math.abs(m||0));return m>=60?Math.floor(m/60)+"�
 function hpSpanMin(a,b){function t(s){var m=/^(\d{1,2}):(\d{2})/.exec(s||"");return m?+m[1]*60+ +m[2]:null;}var x=t(a),y=t(b);if(x==null||y==null)return null;var d=y-x;return d<0?d+1440:d;}
 // ===== 내 페이스 (고도 기준 시간 계산) — v7.8 =====
 // 구간 시간(분) = (perKm×거리km + up×오르막/100m + dn×내리막/100m) × (1 + margin%) · 도로(고정 구간)는 1km당 roadKm분보다 빠르게 잡지 않는다
-var HP_PACE_DEF={perKm:11,up:10.6,dn:3.8,roadKm:12.6,margin:15};
-function hpPace(p){var o={},d=HP_PACE_DEF;for(var k in d){var v=p==null?NaN:+p[k];o[k]=p!=null&&p[k]!=null&&p[k]!==""&&isFinite(v)&&v>=0&&(v>0||k==="dn"||k==="margin")?v:d[k];}return o;}
+var HP_PACE_DEF={perKm:11,up:10.6,dn:3.8,roadKm:12.6,margin:15,rough:1.3,winter:5}; // rough = 암릉·바위 구간 배율(v9.2), winter = 겨울(12~2월) 추가 마진 %
+function hpPace(p){var o={},d=HP_PACE_DEF;for(var k in d){var v=p==null?NaN:+p[k];o[k]=p!=null&&p[k]!=null&&p[k]!==""&&isFinite(v)&&v>=0&&(v>0||k==="dn"||k==="margin"||k==="winter")?v:d[k];}if(o.rough<1)o.rough=1;return o;}
 function hpModelMin(km,up,dn,pace,road){var p=hpPace(pace),t=p.perKm*km+p.up*(up||0)/100+p.dn*(dn||0)/100;if(road)t=Math.max(t,p.roadKm*km);return t*(1+p.margin/100);}
 function hpPaceTxt(pace){var p=hpPace(pace);return "1km당 "+p.perKm+"분 + 오르막 100m당 "+p.up+"분 + 내리막 100m당 "+p.dn+"분 · 마진 "+p.margin+"%";}
 // 고도 목록(경로를 따라 같은 간격) → 오르막·내리막 합(m)
@@ -1075,11 +1075,11 @@ function hpReverseCourse(o,pace){var cps=o.checkpoints||[],n=cps.length;if(n<2)r
     if(j>0){var pd=cps[j-1].depart?mm(cps[j-1].depart):mm(cps[j-1].arrive);legs.push(a!=null&&pd!=null?Math.max(0,a-pd):0);}}
   var t=mm(cps[0].arrive)||540,out=[];
   for(var k=0;k<n;k++){var j2=n-1-k,x=cps[j2],y={};for(var key in x)y[key]=x[key];
-    ["cutoff","cutoffBy","cutoffAction","cutoffAlt","depart","up","dn","route"].forEach(function(q){delete y[q];});
+    ["cutoff","cutoffBy","cutoffAction","cutoffAlt","depart","up","dn","route","rough"].forEach(function(q){delete y[q];});
     y.km=+(tot-(+x.km||0)).toFixed(3);
     if(k>0){var orig=cps[j2+1],up=+orig.dn||0,dn=+orig.up||0,lk=(+orig.km||0)-(+x.km||0),m0=legs[j2],
         f=hpModelMin(lk,+orig.up||0,+orig.dn||0,pace),f2=hpModelMin(lk,up,dn,pace),m=f>0?m0*f2/f:m0;
-      if(orig.up!=null||orig.dn!=null){y.up=Math.round(up);y.dn=Math.round(dn);}t+=m;}
+      if(orig.up!=null||orig.dn!=null){y.up=Math.round(up);y.dn=Math.round(dn);}if(+orig.rough>1)y.rough=+orig.rough;t+=m;}
     y.arrive=hpHMs(t);var r=k>0&&k<n-1?rests[j2]:0;if(r){t+=r;y.depart=hpHMs(t);}out.push(y);}
   var res={};for(var kk in o)res[kk]=o[kk];res.checkpoints=out;
   res.track=(o.track||[]).slice().reverse().map(function(p){var q=p.slice();q[2]=+(tot-(+p[2]||0)).toFixed(3);return q;});
@@ -1091,6 +1091,41 @@ function hpItems(p){return Array.isArray(p&&p.items)?p.items:null;}
 // done: {지점 id: {d,…}} → 항목별 {item, done(bool), got(인증한 지점 수), d(마지막 인증 날짜)}
 function hpItemState(p,done){return (hpItems(p)||[]).map(function(it){var got=0,d="";(it.t||[]).forEach(function(tid){var x=done&&done[tid];if(x){got++;if(x.d>d)d=x.d;}});
   return {item:it,got:got,total:(it.t||[]).length,done:got>0&&got===(it.t||[]).length,d:d};});}
+// ===== v9.2: 암릉 배율 · 겨울 마진 · 다시 계산 · 기록으로 페이스 맞추기 · 날씨 =====
+// 구간 시간(분): 고도 모델 × (암릉이면 rough 배율) × (겨울이면 1+winter%)
+function hpLegMin(km,up,dn,pace,road,rough,winter){var p=hpPace(pace),m=hpModelMin(km,up,dn,pace,road);if(+rough>1)m*=+rough;else if(rough===true)m*=p.rough;if(winter)m*=1+p.winter/100;return m;}
+function hpIsWinter(date){var mo=+String(date||"").slice(5,7);return mo===12||mo===1||mo===2;}
+// 고도 모델 코스(공개 형식, 지점마다 up/dn)를 지금 페이스로 다시 계산 · 휴식·출발 시각 그대로 · 못 하면 null
+function hpReplan(o,pace,opt){opt=opt||{};var cps=o.checkpoints||[],n=cps.length;if(n<2)return null;
+  for(var i=1;i<n;i++)if(cps[i].up==null||cps[i].dn==null)return null;
+  var t=hpParseHM(cps[0].arrive),out=[];
+  for(var j=0;j<n;j++){var x=cps[j],y={};for(var k in x)y[k]=x[k];
+    if(j>0){var pv=cps[j-1];t+=Math.max(1,Math.round(hpLegMin((+x.km||0)-(+pv.km||0),+x.up||0,+x.dn||0,pace,pv.route==="fixed",x.rough,opt.winter)));}
+    var r=x.depart&&j<n-1?Math.max(0,hpParseHM(x.depart)-hpParseHM(x.arrive)):0;y.arrive=hpHMs(t);y.depart=r?hpHMs(t+r):"";t+=r;out.push(y);}
+  var res={};for(var kk in o)res[kk]=o[kk];res.checkpoints=out;res.planBy="model";res.plan={pace:hpPace(pace),at:Date.now()};if(opt.winter)res.plan.winter=true;return res;}
+// 기록 구간들 [{km,up,dn,min}] 로 1km당·오르막·내리막 숫자 맞추기(최소제곱) · 구간이 적거나 값이 이상하면 null
+function hpFitPace(legs){var L=(legs||[]).filter(function(x){return x.km>=0.3&&x.min>0;}),n=L.length;if(n<10)return null;
+  var A=[[0,0,0],[0,0,0],[0,0,0]],B=[0,0,0];L.forEach(function(x){var v=[x.km,(x.up||0)/100,(x.dn||0)/100];for(var i=0;i<3;i++){B[i]+=v[i]*x.min;for(var j=0;j<3;j++)A[i][j]+=v[i]*v[j];}});
+  function det(m){return m[0][0]*(m[1][1]*m[2][2]-m[1][2]*m[2][1])-m[0][1]*(m[1][0]*m[2][2]-m[1][2]*m[2][0])+m[0][2]*(m[1][0]*m[2][1]-m[1][1]*m[2][0]);}
+  var D=det(A);if(!isFinite(D)||Math.abs(D)<1e-6)return null;var X=[];for(var c=0;c<3;c++){var M=A.map(function(r){return r.slice();});for(var r2=0;r2<3;r2++)M[r2][c]=B[r2];X.push(det(M)/D);}
+  if(!(X[0]>=6&&X[0]<=20&&X[1]>=2&&X[1]<=20&&X[2]>=0&&X[2]<=10))return null;
+  var se=0;L.forEach(function(x){var e=X[0]*x.km+X[1]*(x.up||0)/100+X[2]*(x.dn||0)/100-x.min;se+=e*e;});
+  return {perKm:+X[0].toFixed(1),up:+X[1].toFixed(1),dn:+X[2].toFixed(1),segments:n,rmse:+Math.sqrt(se/n).toFixed(1)};}
+// 날씨 코드(WMO) → 말
+function hpWxText(code){code=+code;if(code===0)return "맑음";if(code<=2)return "구름 조금";if(code===3)return "흐림";if(code===45||code===48)return "안개";if(code>=51&&code<=57)return "이슬비";
+  if(code>=61&&code<=67)return "비";if(code>=71&&code<=77)return "눈";if(code>=80&&code<=82)return "소나기";if(code>=85&&code<=86)return "눈";if(code>=95)return "뇌우";return "–";}
+// Open-Meteo 시간별 응답(j.hourly)에서 산행 시간대(h0~h1시, 현지 시각)만 모아 요약
+function hpWxSummary(hourly,date,h0,h1){if(!hourly||!hourly.time)return null;var T=[],F=[],W=[],G=[],P=0,H=[],C={},S=0;
+  hourly.time.forEach(function(tm,i){if(String(tm).slice(0,10)!==date)return;var hh=+String(tm).slice(11,13);if(hh<h0||hh>h1)return;
+    function v(k){var a=hourly[k];return a&&a[i]!=null?+a[i]:null;}
+    var t=v("temperature_2m");if(t!=null)T.push(t);var f=v("apparent_temperature");if(f!=null)F.push(f);var w=v("wind_speed_10m");if(w!=null)W.push(w);var g=v("wind_gusts_10m");if(g!=null)G.push(g);
+    var pr=v("precipitation");if(pr!=null)P+=pr;var hu=v("relative_humidity_2m");if(hu!=null)H.push(hu);var c=v("weather_code");if(c!=null)C[c]=(C[c]||0)+1;var sd=v("snow_depth");if(sd!=null&&sd>S)S=sd;});
+  if(!T.length)return null;function avg(a){return a.reduce(function(x,y){return x+y;},0)/a.length;}
+  var code=null,bn=0;for(var k in C)if(C[k]>bn||(C[k]===bn&&+k>+code)){bn=C[k];code=+k;}var worst=Math.max.apply(null,Object.keys(C).map(Number));
+  var o={tMin:Math.round(Math.min.apply(null,T)),tMax:Math.round(Math.max.apply(null,T)),t:Math.round(avg(T)),code:code,text:hpWxText(P>=0.5&&worst>=51?worst:code),rain:+P.toFixed(1)};
+  if(F.length)o.feel=Math.round(Math.min.apply(null,F));if(W.length)o.wind=+(Math.max.apply(null,W)/3.6).toFixed(1);if(G.length)o.gust=+(Math.max.apply(null,G)/3.6).toFixed(1);if(H.length)o.hum=Math.round(avg(H));if(S>0)o.snowCm=Math.round(S*100);
+  return o;}
+function hpWxLine(w){if(!w)return "";return w.text+" · "+(w.tMin===w.tMax?w.t:w.tMin+"~"+w.tMax)+"℃"+(w.feel!=null&&w.feel<w.tMin-1?" (체감 "+w.feel+"℃)":"")+(w.wind!=null?" · 바람 "+w.wind+"m/s"+(w.gust!=null&&w.gust>=w.wind+3?" (순간 "+w.gust+")":""):"")+(w.rain>0?" · 비·눈 "+w.rain+"mm":"")+(w.snowCm?" · 적설 "+w.snowCm+"cm":"")+(w.hum!=null?" · 습도 "+w.hum+"%":"");}
 // </hp-common>
 var crsGroupE=hpGroup,shortE=hpShort,famsE=hpFamilies,famTitleE=hpFamTitle;
 // index.json 항목 · tg(지나는 인증 지점)·pin·cpn(지점 이름)은 코스 트리용 (v8.5) — 산 목록(CAT)이 없으면 예전 값 유지
@@ -1123,12 +1158,14 @@ function cpForm(i){var c=CP[i],f=h("div",{cls:"box"});
   f.appendChild(inp("메모 (지점 아래 한 줄)",c.note,set("note")));
   var rr=h("input",{id:"cpR",type:"number",min:"20",max:"2000",step:"5",value:Math.round((+c.radiusKm||0.15)*1000)});rr.onchange=function(){push();c.radiusKm=Math.max(20,Math.min(2000,+rr.value||150))/1000;drawAll();renderPanels();};
   f.appendChild(h("div",{cls:"g2"},[h("label",{cls:"f"},["도착 인정 반경 (m)",rr]),h("div",null,[cbx("봉우리(정상) 지점",c.peak,function(v){push();c.peak=v;drawAll();renderPanels();}),
-    i<CP.length-1?cbx("다음 구간 고정 (도로)",c.route==="fixed",function(v){push();c.route=v?"fixed":"";drawAll();renderPanels();}):null])]));
+    i<CP.length-1?cbx("다음 구간 고정 (도로)",c.route==="fixed",function(v){push();c.route=v?"fixed":"";drawAll();renderPanels();}):null,
+    i>0?cbx("앞 구간이 암릉·바위 (시간 ×"+hpPace(PACE).rough+")",+c.rough>1,function(v){push();c.rough=v?hpPace(PACE).rough:0;drawAll();renderPanels();}):null])]));
   f.appendChild(h("div",{cls:"g3"},[inp("컷오프",c.cutoff,set("cutoff","t"),{type:"time"}),h("label",{cls:"f"},["기준",(function(){var s=h("select",null,[h("option",{value:"arrive",text:"도착"}),h("option",{value:"depart",text:"출발"})]);s.value=c.cutoffBy||"arrive";s.onchange=function(){push();c.cutoffBy=s.value;};return s;})()]),inp("컷오프 행동",c.cutoffAction,set("cutoffAction"))]));
   if(altList().length){var cs=h("select",null,[h("option",{value:"",text:"없음"})].concat(altList().map(function(a){var o=ALT_CACHE[a.id];return h("option",{value:a.id,text:a.label||(o?o.name:a.id)});})));cs.value=c.cutoffAlt||"";
     cs.onchange=function(){push();c.cutoffAlt=cs.value;renderPanels();};f.appendChild(h("label",{cls:"f"},["컷오프 넘기면 권할 대안 코스",cs]));}
   // 중간 하산 지점 (v8.6): 여기서 끝낼 때 내려가는 역·정류장과 도보 거리 → 앱 '하산 판단'
   f.appendChild(h("div",{cls:"g2"},[inp("하산 가능 (내려가는 역·정류장)",c.exit,set("exit"),{placeholder:"예: 부평삼거리역"}),inp("도보 km",c.exitKm||"",function(v){push();c.exitKm=Math.max(0,+v||0);drawAll();renderPanels();},{type:"number",step:"0.1",min:"0"})]));
+  if(c.exit)f.appendChild(h("div",{cls:"g2"},[inp("막차 시각 (선택)",c.exitLast||"",function(v){push();c.exitLast=normT(v)||"";renderPanels();},{type:"time"}),inp("버스 메모 (선택)",c.exitNote||"",set("exitNote"),{placeholder:"예: 3번 버스 30분 간격"})]));
   if(APP)f.appendChild(h("div",{cls:"row"},[h("button",{cls:"pri",text:"📍 여기로 옮기기",title:"지금 내 위치(GPS)로 이 지점을 옮겨요",onclick:function(){hereMove(i);}})]));
   f.appendChild(h("div",{cls:"row"},[h("button",{text:"경로에 붙이기",title:"지점을 가장 가까운 경로 위로 옮겨요",onclick:function(){var q=cpLL(i),best=null;SEG.forEach(function(s){var r=s.length>1?nearestOn(s,q,1):null;if(r&&(!best||r.d<best.d))best=r;});if(best)moveCp(i,best.ll);}}),
     h("button",{text:"경로 끝을 지점으로",title:"앞뒤 구간 끝점을 이 지점 좌표로 맞춰요",onclick:function(){var q=cpLL(i);if(!q)return;push();moveCp(i,q);}}),
