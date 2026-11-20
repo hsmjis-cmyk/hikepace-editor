@@ -449,7 +449,7 @@ function drawRoute(){gRoute.clearLayers();
   SEG.forEach(function(s,i){if(s.length<2)return;var ll=s.map(function(p){return [p[0],p[1]];}),on=sel.t==="seg"&&sel.i===i;
     L.polyline(ll,{color:"#fff",weight:on?11:9,opacity:.95,interactive:false}).addTo(gRoute);
     var pl=L.polyline(ll,{color:segColor(i),weight:on?6:5,opacity:1,dashArray:CP[i].route==="fixed"?"10 6":null,lineCap:"round",lineJoin:"round"}).addTo(gRoute);
-    pl.on("click",function(ev){if(mode)return onMapClick(ev);L.DomEvent.stopPropagation(ev);if(ptModeClick(ev))return;select("seg",i);});
+    pl.on("click",function(ev){if(mode){L.DomEvent.stopPropagation(ev);return onMapClick(ev);}L.DomEvent.stopPropagation(ev);if(ptModeClick(ev))return;select("seg",i);});
     pl.on("contextmenu",function(ev){L.DomEvent.stopPropagation(ev);if(mode||ptMode())return;splitAt(i,[ev.latlng.lat,ev.latlng.lng]);});
     pl.bindTooltip((i+1)+"구간 · "+CP[i].name+" → "+CP[i+1].name,{sticky:true});});
   // 지점과 경로 끝이 떨어져 있으면 점선으로 표시
@@ -550,9 +550,9 @@ function catTargets(){if(!CAT)return [];var inP={};(CAT.programs||[]).filter(pfO
     if(id===sel.i&&sel.t==="tgt")return true;for(var k=0;k<all.length;k+=3){if(hav(all[k],[t.lat,t.lon])<1500)return true;}return !all.length;}).slice(0,300).map(function(id){return {id:id,t:CAT.targets[id],progs:inP[id]};});}
 var TGT_EDIT=null; // 위치 편집을 켠 인증 지점만 끌어서 옮길 수 있음
 function drawTgts(){gTgt.clearLayers();if(TGT_EDIT&&!(sel.t==="tgt"&&sel.i===TGT_EDIT))TGT_EDIT=null;if(!SHOW.tgt)return;catTargets().forEach(function(x){var t=x.t,r=tgtCertM(t),on=sel.t==="tgt"&&sel.i===x.id,p=[t.lat,t.lon];
-  L.circle(p,{radius:r,color:"#b71c1c",weight:on?3:2,dashArray:"7 5",fillColor:"#e53935",fillOpacity:on?.28:.16}).on("click",function(ev){if(NW&&NW.mt&&!mode){L.DomEvent.stopPropagation(ev);nwClick(p);return;}if(mode&&mode.k==="addcp"){L.DomEvent.stopPropagation(ev);acAddCat(x.id);return;}if(mode)return onMapClick(ev);L.DomEvent.stopPropagation(ev);if(ptModeClick(ev))return;select("tgt",x.id);}).addTo(gTgt);
+  L.circle(p,{radius:r,color:"#b71c1c",weight:on?3:2,dashArray:"7 5",fillColor:"#e53935",fillOpacity:on?.28:.16}).on("click",function(ev){if(NW&&NW.mt&&!mode){L.DomEvent.stopPropagation(ev);nwClick(p);return;}if(mode&&mode.k==="addcp"){L.DomEvent.stopPropagation(ev);acAddCat(x.id);return;}if(mode){L.DomEvent.stopPropagation(ev);return onMapClick(ev);}L.DomEvent.stopPropagation(ev);if(ptModeClick(ev))return;select("tgt",x.id);}).addTo(gTgt);
   var tm=L.marker(p,{icon:L.divIcon({className:"",iconSize:[0,0],html:'<div class="tg'+(on?" on":"")+(TGT_EDIT===x.id?" ed":"")+'"><i></i><b>'+esc(t.n+(t.sub?" "+t.sub:""))+" · 인증 "+r+"m"+(CAT_DIRTY[x.id]?" ●":"")+'</b></div>'}),draggable:TGT_EDIT===x.id&&!ptMode(),zIndexOffset:on?1800:400,title:TGT_EDIT===x.id?"끌어서 인증 위치 옮기기":"선택 · 옮기려면 '위치 편집'을 켜세요"}).addTo(gTgt);
-  tm.on("click",function(ev){if(NW&&NW.mt&&!mode){L.DomEvent.stopPropagation(ev);nwClick(p);return;}if(mode&&mode.k==="addcp"){L.DomEvent.stopPropagation(ev);acAddCat(x.id);return;}if(mode)return onMapClick(ev);if(ptModeClick(ev))return;select("tgt",x.id);});
+  tm.on("click",function(ev){if(NW&&NW.mt&&!mode){L.DomEvent.stopPropagation(ev);nwClick(p);return;}if(mode&&mode.k==="addcp"){L.DomEvent.stopPropagation(ev);acAddCat(x.id);return;}if(mode){L.DomEvent.stopPropagation(ev);return onMapClick(ev);}if(ptModeClick(ev))return;select("tgt",x.id);});
   tm.on("dragstart",function(){tgtOrig(x.id);});
   tm.on("drag",function(ev){var ll=ev.target.getLatLng();t.lat=r6(ll.lat);t.lon=r6(ll.lng);CAT_DIRTY[x.id]=1;});
   tm.on("dragend",function(){sel={t:"tgt",i:x.id};drawTgts();renderPanels();showTab("course");toast("인증 위치를 옮겼어요 · '인증 지점 올리기'로 산 목록에 반영");});
