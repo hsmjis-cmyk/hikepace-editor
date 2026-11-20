@@ -55,7 +55,7 @@ h3{font-size:13px;margin:14px 0 6px;color:var(--muted)}
 #nmap{width:100%;height:100%}
 .nv #map.leaflet-container{background:transparent}
 #modebar{position:absolute;left:50%;top:10px;transform:translateX(-50%);z-index:1000;background:#18201b;color:#fff;border-radius:10px;padding:8px 12px;display:none;gap:8px;align-items:center;box-shadow:0 2px 10px rgba(0,0,0,.3);font-size:13px}
-#modebar button{padding:4px 10px;font-size:12px;white-space:nowrap}
+#modebar button{padding:4px 10px;font-size:12px;white-space:nowrap}#modebar{flex-wrap:wrap;max-width:calc(100% - 120px)}
 #ptbar{position:absolute;left:56px;top:10px;z-index:1000;background:#fff;border:1px solid var(--line);border-radius:10px;padding:6px;display:none;gap:4px;align-items:center;box-shadow:0 2px 8px rgba(0,0,0,.18);font-size:13px;flex-wrap:wrap;max-width:calc(100% - 70px)}
 #ptbar .t{font-weight:700;color:var(--muted);padding:0 4px;font-size:12px}#ptbar button{padding:4px 10px;font-size:12px}#ptbar select{width:auto;padding:4px 6px;font-size:12px}
 .vx.pick{background:var(--sel);transform:scale(1.4)}.vx.del{border-color:#d32f2f;cursor:pointer}
@@ -111,6 +111,7 @@ body.app #locB{display:block}
 .nwp{position:relative;width:0;height:0}.nwp i{position:absolute;left:-5px;top:-5px;width:10px;height:10px;border-radius:50%;background:#475569;border:2px solid #fff;box-sizing:border-box;cursor:pointer;box-shadow:0 0 2px rgba(0,0,0,.5)}
 .nwp.pk i{background:#c2410c;width:12px;height:12px;left:-6px;top:-6px}
 .nwp b{position:absolute;left:9px;top:-9px;font-size:11px;font-weight:700;color:#334155;white-space:nowrap;text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 3px #fff;pointer-events:none}.nwp.pk b{color:#9a3412}
+.acc{position:relative;width:0;height:0}.acc i{position:absolute;left:-6px;top:-6px;width:12px;height:12px;border-radius:50%;background:#fff;border:2px solid #6b7280;box-sizing:border-box;cursor:pointer}.acc b{position:absolute;left:9px;top:-9px;font-size:11px;font-weight:700;color:#374151;white-space:nowrap;text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 3px #fff;cursor:pointer}.acc.cat i{left:-9px;top:-9px;width:18px;height:18px;border:3px dashed #b71c1c;background:#fde2e1}.acc.cat b{left:12px;top:-10px;color:#b71c1c}
 .nwk{position:relative;width:0;height:0}.nwk i{position:absolute;left:-11px;top:-11px;width:22px;height:22px;border-radius:50%;background:#e8590c;color:#fff;font-style:normal;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-sizing:border-box;box-shadow:0 1px 4px rgba(0,0,0,.45)}
 .nwk.ct i{background:#b71c1c}.nwk b{position:absolute;left:14px;top:-10px;background:rgba(255,255,255,.95);border:1px solid #e8590c;border-radius:6px;padding:0 5px;font-size:11px;white-space:nowrap;font-weight:700;color:#9a3412;pointer-events:none}
 .nwrow{display:flex;align-items:center;gap:6px}.nwrow input{padding:4px 6px;font-size:13px;width:100%}.nwrow small{display:block}.nwrow .r{display:flex;gap:2px}
@@ -549,9 +550,9 @@ function catTargets(){if(!CAT)return [];var inP={};(CAT.programs||[]).filter(pfO
     if(id===sel.i&&sel.t==="tgt")return true;for(var k=0;k<all.length;k+=3){if(hav(all[k],[t.lat,t.lon])<1500)return true;}return !all.length;}).slice(0,300).map(function(id){return {id:id,t:CAT.targets[id],progs:inP[id]};});}
 var TGT_EDIT=null; // 위치 편집을 켠 인증 지점만 끌어서 옮길 수 있음
 function drawTgts(){gTgt.clearLayers();if(TGT_EDIT&&!(sel.t==="tgt"&&sel.i===TGT_EDIT))TGT_EDIT=null;if(!SHOW.tgt)return;catTargets().forEach(function(x){var t=x.t,r=tgtCertM(t),on=sel.t==="tgt"&&sel.i===x.id,p=[t.lat,t.lon];
-  L.circle(p,{radius:r,color:"#b71c1c",weight:on?3:2,dashArray:"7 5",fillColor:"#e53935",fillOpacity:on?.28:.16}).on("click",function(ev){if(NW&&NW.mt&&!mode){L.DomEvent.stopPropagation(ev);nwClick(p);return;}if(mode)return onMapClick(ev);L.DomEvent.stopPropagation(ev);if(ptModeClick(ev))return;select("tgt",x.id);}).addTo(gTgt);
+  L.circle(p,{radius:r,color:"#b71c1c",weight:on?3:2,dashArray:"7 5",fillColor:"#e53935",fillOpacity:on?.28:.16}).on("click",function(ev){if(NW&&NW.mt&&!mode){L.DomEvent.stopPropagation(ev);nwClick(p);return;}if(mode&&mode.k==="addcp"){L.DomEvent.stopPropagation(ev);acAddCat(x.id);return;}if(mode)return onMapClick(ev);L.DomEvent.stopPropagation(ev);if(ptModeClick(ev))return;select("tgt",x.id);}).addTo(gTgt);
   var tm=L.marker(p,{icon:L.divIcon({className:"",iconSize:[0,0],html:'<div class="tg'+(on?" on":"")+(TGT_EDIT===x.id?" ed":"")+'"><i></i><b>'+esc(t.n+(t.sub?" "+t.sub:""))+" · 인증 "+r+"m"+(CAT_DIRTY[x.id]?" ●":"")+'</b></div>'}),draggable:TGT_EDIT===x.id&&!ptMode(),zIndexOffset:on?1800:400,title:TGT_EDIT===x.id?"끌어서 인증 위치 옮기기":"선택 · 옮기려면 '위치 편집'을 켜세요"}).addTo(gTgt);
-  tm.on("click",function(ev){if(NW&&NW.mt&&!mode){L.DomEvent.stopPropagation(ev);nwClick(p);return;}if(mode)return onMapClick(ev);if(ptModeClick(ev))return;select("tgt",x.id);});
+  tm.on("click",function(ev){if(NW&&NW.mt&&!mode){L.DomEvent.stopPropagation(ev);nwClick(p);return;}if(mode&&mode.k==="addcp"){L.DomEvent.stopPropagation(ev);acAddCat(x.id);return;}if(mode)return onMapClick(ev);if(ptModeClick(ev))return;select("tgt",x.id);});
   tm.on("dragstart",function(){tgtOrig(x.id);});
   tm.on("drag",function(ev){var ll=ev.target.getLatLng();t.lat=r6(ll.lat);t.lon=r6(ll.lng);CAT_DIRTY[x.id]=1;});
   tm.on("dragend",function(){sel={t:"tgt",i:x.id};drawTgts();renderPanels();showTab("course");toast("인증 위치를 옮겼어요 · '인증 지점 올리기'로 산 목록에 반영");});
@@ -601,26 +602,29 @@ map.on("moveend",function(){if(CAT&&!SEG.length){drawTgts();if($("p-course").cla
 map.on("click",function(ev){if(mode)return onMapClick(ev);if(NW&&NW.mt){nwClick([ev.latlng.lat,ev.latlng.lng]);return;}if(ptMode()){if(PM==="add")insertPoint([ev.latlng.lat,ev.latlng.lng]);return;}if(sel.t){sel={t:null,i:-1};drawAll();renderPanels();}});
 
 // ============ 편집 동작 ============
-function splitAt(i,ll){ // 구간 i 위의 점에 새 지점 추가
-  var s=SEG[i],r=nearestOn(s,ll,1);if(!r)return;push();
+function splitAt(i,ll,o){ // 구간 i 위의 점에 새 지점 추가 · o {name,lat,lon,peak,radiusKm,note,quiet} (v9.5 지점 추가 모드)
+  var s=SEG[i],r=nearestOn(s,ll,1);if(!r)return null;push();
   var g=lenM(s.slice(0,r.i).concat([[r.ll[0],r.ll[1]]])),G=lenM(s)||1,a=CP[i],b=CP[i+1],km=+(a.km+(b.km-a.km)*g/G).toFixed(2);
   var ta=hm(a.depart||a.arrive),tb=hm(b.arrive),ar=ta!=null&&tb!=null?fmt(ta+(tb-ta)*g/G):"";
   var nc={name:"새 지점",km:km,arrive:ar,depart:"",note:"",peak:false,radiusKm:0.05,cutoff:"",cutoffBy:"arrive",cutoffAction:"",route:a.route,lat:r6(r.ll[0]),lon:r6(r.ll[1])};
+  if(+b.rough>1)nc.rough=+b.rough;
+  if(o){["name","peak","radiusKm","note"].forEach(function(k){if(o[k]!=null)nc[k]=o[k];});if(o.lat!=null){nc.lat=r6(o.lat);nc.lon=r6(o.lon);}}
   var s1=s.slice(0,r.i).concat([[r.ll[0],r.ll[1],null]]),s2=[[r.ll[0],r.ll[1],null]].concat(s.slice(r.i));
   CP.splice(i+1,0,nc);SEG.splice(i,1,s1,s2);HOW.splice(i,1,HOW[i]||"",HOW[i]||"");
-  select("cp",i+1);toast("지점을 추가했어요 · 이름과 시각을 고치세요");}
+  if(o&&o.quiet){drawAll();renderPanels();return nc;}
+  select("cp",i+1);toast("지점을 추가했어요 · 이름과 시각을 고치세요");return nc;}
 function delCp(i){if(i<=0||i>=CP.length-1){toast("출발·도착 지점은 지울 수 없어요");return;}push();
   var m=SEG[i-1].concat(SEG[i].slice(1));CP.splice(i,1);SEG.splice(i-1,2,m);HOW.splice(i-1,2,"편집");sel={t:"seg",i:i-1};drawAll();renderPanels();}
-function addCpEnd(ll,atStart){push();var p=[ll[0],ll[1],null];
+function addCpEnd(ll,atStart,o){push();var p=[ll[0],ll[1],null];
   if(atStart){var b=CP[0],q=cpLL(0);CP.forEach(function(c){c.km=+(+c.km+hav(p,q)/1000).toFixed(3);});CP.unshift({name:"새 출발",km:0,arrive:CP[0].arrive,depart:"",note:"",peak:false,radiusKm:0.05,cutoff:"",cutoffBy:"arrive",cutoffAction:"",route:"",lat:r6(ll[0]),lon:r6(ll[1])});SEG.unshift([p,[q[0],q[1],null]]);HOW.unshift("직선");}
   else{var n=CP.length-1,q2=cpLL(n),last=CP[n];CP.push({name:"새 도착",km:+(+last.km+hav(q2,p)/1000).toFixed(2),arrive:last.depart||last.arrive,depart:"",note:"",peak:false,radiusKm:0.05,cutoff:"",cutoffBy:"arrive",cutoffAction:"",route:"",lat:r6(ll[0]),lon:r6(ll[1])});SEG.push([[q2[0],q2[1],null],p]);HOW.push("직선");}
-  select("cp",atStart?0:CP.length-1);}
+  var nc=CP[atStart?0:CP.length-1];if(o){["name","peak","radiusKm","note"].forEach(function(k){if(o[k]!=null)nc[k]=o[k];});}
+  if(o&&o.quiet){drawAll();renderPanels();return nc;}select("cp",atStart?0:CP.length-1);return nc;}
 function setModebar(html,btns){var mb=$("modebar");mb.innerHTML="";if(!html){mb.style.display="none";return;}mb.style.display="flex";mb.appendChild(h("span",{html:html}));(btns||[]).forEach(function(b){mb.appendChild(b);});layoutBars();}
 // 점 편집 막대(왼쪽 위)와 모드 안내(가운데 위)가 겹치지 않게 안내를 아래로 내림
 function layoutBars(){var mb=$("modebar"),pb=$("ptbar");mb.style.top=(pb.style.display==="flex"?pb.offsetTop+pb.offsetHeight+8:10)+"px";}
 function endMode(){mode=null;gDraw.clearLayers();setModebar(null);map.getContainer().style.cursor="";drawAll();renderPanels();}
-function startAddCp(){if(!META)return;endMode();mode={k:"addcp"};drawEdit();drawCps();renderPanels();map.getContainer().style.cursor="crosshair";
-  setModebar("경로 위를 누르면 그 자리에 지점을 넣어요 · 경로 밖을 누르면 출발 앞/도착 뒤에 붙여요",[h("button",{text:"취소 (Esc)",onclick:endMode})]);}
+function startAddCp(){if(!META)return;endMode();mode={k:"addcp",added:[]};drawEdit();drawCps();renderPanels();map.getContainer().style.cursor="crosshair";acBar();acPaint();acLoad();}
 var drawFollow=ls("ce.follow")!=="0";
 function startDraw(i){if(!META)return;endMode();var pa=segEnds(i)[0];if(!pa){toast("구간 시작 지점 위치가 없어요");return;}
   mode={k:"draw",i:i,pts:[[pa[0],pa[1],null]],steps:[]};map.getContainer().style.cursor="crosshair";sel={t:"seg",i:i};drawAll();
@@ -636,10 +640,80 @@ function paintDraw(){gDraw.clearLayers();if(!mode||mode.k!=="draw")return;var i=
 function legTo(from,to){if(drawFollow&&NET){var r=netRoute(NET,from,to);if(r&&r.m<hav(from,to)*4+300)return r.pts.slice(1);}return [[to[0],to[1],null]];}
 function finishDraw(){var i=mode.i,pb=segEnds(i)[1],last=mode.pts[mode.pts.length-1];var add=legTo(last,pb);push();SEG[i]=mode.pts.concat(add);HOW[i]=drawFollow&&NET?"그림(등산로)":"그림";endMode();toast((i+1)+"구간을 다시 그렸어요");}
 function onMapClick(ev){var ll=[ev.latlng.lat,ev.latlng.lng];
-  if(mode.k==="addcp"){var best=null;SEG.forEach(function(s,i){if(s.length<2)return;var r=nearestOn(s,ll,1);if(r&&(!best||r.d<best.d))best={i:i,d:r.d};});
-    var px=map.latLngToContainerPoint(ev.latlng),near=best&&best.d<Math.max(30,20*metersPerPx());endMode();
-    if(near)splitAt(best.i,ll);else{var d0=cpLL(0)?hav(ll,cpLL(0)):1e9,d1=cpLL(CP.length-1)?hav(ll,cpLL(CP.length-1)):1e9;addCpEnd(ll,d0<d1);toast(d0<d1?"출발 앞에 지점을 붙였어요":"도착 뒤에 지점을 붙였어요");}return;}
+  if(mode.k==="addcp"){acClick(ll);return;}
   if(mode.k==="draw"){var last=mode.pts[mode.pts.length-1],add=legTo(last,ll);mode.pts=mode.pts.concat(add);mode.steps.push(add.length);paintDraw();}}
+// ============ 지점 추가 모드 (v9.5, 2026-11-20 사용자 요청 C안) ============
+// 경로를 누르면 이름이 자동으로 붙음(인증 지점 50m → 오픈스트리트맵 이름 있는 곳 → 고도로 무명봉·안부 / 지점 N) · 모드가 이어져서 계속 누름 · Esc/완료로 끝
+// 후보: ◆ 경로가 인증 반경 안을 지나는데 지점이 없는 인증 지점, ● 경로 80m 안 이름 있는 곳 · 누르면 그 이름·좌표로 추가 · '인증 지점 모두 넣기'
+// 시각: 원래 구간(앞 지점→뒤 지점) 시간을 고도(내 페이스 식) 비율로 나눠 넣음 → 코스 전체 시간·다른 지점 시각은 그대로
+var AC_POI={box:null,list:null,load:""};
+function acRoutePts(){var a=[];SEG.forEach(function(s){s.forEach(function(p){a.push(p);});});return a;}
+function acNearSeg(ll){var best=null;SEG.forEach(function(s,i){if(s.length<2)return;var r=nearestOn(s,ll,1);if(r&&(!best||r.d<best.d))best={i:i,d:r.d,ll:r.ll};});return best;}
+function acHasCp(t){return CP.some(function(c){return c.lat!=null&&hav([c.lat,c.lon],[t.lat,t.lon])<=Math.max(60,(+c.radiusKm||0)*1000);});}
+function acCatCands(){if(!CAT)return [];var pts=acRoutePts();if(!pts.length)return [];
+  return hpPassTargets(pts,CAT.targets).filter(function(id){return !acHasCp(CAT.targets[id]);}).map(function(id){var t=CAT.targets[id],ll=[t.lat,t.lon],b=acNearSeg(ll),r=b?nearestOn(SEG[b.i],ll,1):null;
+    return {id:id,k:b&&r?b.i*1e7+lenM(SEG[b.i].slice(0,r.i).concat([r.ll])):1e12};}).sort(function(a,b){return a.k-b.k;}).map(function(x){return x.id;});}
+function acPoiCands(){if(!AC_POI.list)return [];
+  return AC_POI.list.filter(function(o){if(CP.some(function(c){return c.lat!=null&&hav([c.lat,c.lon],[o.lat,o.lon])<40;}))return false;var b=acNearSeg([o.lat,o.lon]);return b&&b.d<=80;});}
+function acLoad(){var b=courseBox(0.004);if(!b)return;
+  if(AC_POI.list&&boxIn(b,AC_POI.box)){acPaint();acBar();return;}
+  AC_POI.load="이름 있는 곳을 받는 중…";acBar();
+  poiQuery(b).then(function(out){AC_POI={box:b,list:out,load:""};},function(e){AC_POI.load="이름 있는 곳을 못 받았어요("+e.message+") · 인증 지점·고도로 이름을 붙여요";})
+    .then(function(){if(mode&&mode.k==="addcp"){acPaint();acBar();}});}
+function acPaint(){gDraw.clearLayers();if(!mode||mode.k!=="addcp")return;
+  acCatCands().forEach(function(id){var t=CAT.targets[id];
+    L.marker([t.lat,t.lon],{icon:L.divIcon({className:"",iconSize:[0,0],html:'<div class="acc cat"><i></i><b>◆ '+esc(tgtName(t))+' 넣기</b></div>'}),zIndexOffset:2500,title:"인증 지점 · "+tgtProgs(id).join(", ")})
+      .on("click",function(ev){L.DomEvent.stopPropagation(ev);acAddCat(id);}).addTo(gDraw);});
+  var ps=acPoiCands(),lab=ps.length<=30;
+  ps.forEach(function(o){L.marker([o.lat,o.lon],{icon:L.divIcon({className:"",iconSize:[0,0],html:'<div class="acc"><i></i>'+(lab?'<b>'+esc(o.n)+'</b>':'')+'</div>'}),zIndexOffset:2400,title:o.n+" · "+o.k})
+    .on("click",function(ev){L.DomEvent.stopPropagation(ev);acDo(function(){return acInsert({src:"osm",n:o.n,k:o.k,peak:o.peak,ele:o.ele,lat:o.lat,lon:o.lon});});}).addTo(gDraw);});}
+function acBar(){if(!mode||mode.k!=="addcp")return;var n=mode.n||0,cc=acCatCands().length,pc=acPoiCands().length,last=mode.last&&CP.indexOf(mode.last)>=0?mode.last:null,btn=[];
+  if(last){var ni=h("input",{value:last.name,title:"방금 넣은 지점 이름 (고치고 Enter)",style:"width:10em;padding:3px 6px;font-size:12px;color:#111"});
+    ni.onchange=function(){var v=ni.value.trim();if(!v||v===last.name)return;last.name=v;delete last._auto;setDirty(true);drawAll();renderPanels();acPaint();acBar();};
+    ni.onkeydown=function(e){if(e.key==="Enter")ni.blur();if(e.key!=="Escape")e.stopPropagation();};btn.push(ni);}
+  if(cc)btn.push(h("button",{text:"◆ 인증 지점 모두 넣기 ("+cc+")",onclick:acAddAllCat}));
+  btn.push(h("button",{text:"마지막 취소",disabled:!(mode.hist&&mode.hist.length),onclick:acUndo}));
+  btn.push(h("button",{cls:"pri",text:"완료",onclick:endMode}));
+  setModebar("<b>지점 추가</b> · "+(n?n+"개 넣음 · ":"")+"경로를 누르면 이름이 자동으로 붙어요"+(cc||pc?" · 후보 ◆"+cc+" ●"+pc:"")+(AC_POI.load?" · "+esc(AC_POI.load):""),btn);}
+// 넣기 한 번(여러 지점일 수도)을 '마지막 취소' 한 번으로 되돌리게 묶음
+function acDo(fn){var u0=undoS.length,out=fn(),k=(Array.isArray(out)?out:out?[out]:[]).filter(Boolean);if(!k.length)return k;
+  if(undoS.length>u0+1)undoS.splice(u0+1);(mode.hist=mode.hist||[]).push(k.length);mode.n=(mode.n||0)+k.length;mode.last=k[k.length-1];
+  sel={t:"cp",i:CP.indexOf(mode.last)};drawAll();renderPanels();acPaint();acBar();acTimes(k);
+  if(!APP&&!document.body.classList.contains("app"))toast(k.length>1?"지점 "+k.length+"개 넣음 · 이름은 위 칸에서 바로 고칠 수 있어요":"'"+mode.last.name+"' 넣음"+(mode.last.note?" · "+mode.last.note:""),3500);return k;}
+function acUndo(){if(!mode||!mode.hist||!mode.hist.length)return;var k=mode.hist.pop();undo();mode.n=Math.max(0,(mode.n||0)-k);mode.last=null;drawAll();renderPanels();acPaint();acBar();}
+function acClick(ll){var P=AC_POI.list||[],f=nwFind(ll,Math.min(60,nwHitTol()),P);
+  if(!f){var b=acNearSeg(ll);if(b&&b.d<Math.max(30,20*metersPerPx())){f=nwFind(b.ll,40,P);if(!f){acDo(function(){return acInsert({src:"map",lat:b.ll[0],lon:b.ll[1]});});return;}}
+    else{acDo(function(){return acInsert({src:"map",lat:ll[0],lon:ll[1],end:true});});return;}}
+  if(f.src==="cat"){acAddCat(f.tid);return;}
+  acDo(function(){return acInsert({src:"osm",n:f.n,k:f.k,peak:f.peak,ele:f.ele,lat:f.lat,lon:f.lon});});}
+function acAddCat(id){var t=CAT&&CAT.targets[id];if(!t)return;if(acHasCp(t)){toast("'"+tgtName(t)+"'에는 이미 지점이 있어요");return;}
+  acDo(function(){return acInsert({src:"cat",tid:id,n:tgtName(t),peak:true,lat:t.lat,lon:t.lon});});}
+function acAddAllCat(){var ids=acCatCands();if(!ids.length)return;
+  acDo(function(){return ids.map(function(id){var t=CAT.targets[id];return acHasCp(t)?null:acInsert({src:"cat",tid:id,n:tgtName(t),peak:true,lat:t.lat,lon:t.lon});});});}
+// 지점 하나 넣기: 경로 300m 안이면 그 자리에서 구간을 나누고(인증 지점·이름 있는 곳은 그 좌표), 멀면 출발 앞/도착 뒤에 붙임
+function acInsert(p){var ll=[p.lat,p.lon],b=acNearSeg(ll),on=b&&b.d<=300&&!p.end,off=b?b.d:0;
+  var big=p.src==="cat"||p.peak||p.k==="대피소·쉼터",rad=on&&big&&off>50?0.1:0.05;
+  var nt=p.src==="cat"?"◆ 인증: "+tgtProgs(p.tid).join(", "):p.k?p.k+(p.ele?" "+p.ele+"m":""):"";
+  if(rad>0.05)nt+=(nt?" · ":"")+"길에서 "+Math.round(off)+"m 떨어져 도착 반경 100m";
+  var o={name:p.n||"새 지점",peak:p.src==="cat"||!!p.peak,radiusKm:rad,note:nt,lat:p.lat,lon:p.lon,quiet:true},nc;
+  if(on)nc=splitAt(b.i,b.ll,o);else{var d0=cpLL(0)?hav(ll,cpLL(0)):1e9,d1=cpLL(CP.length-1)?hav(ll,cpLL(CP.length-1)):1e9;nc=addCpEnd(ll,d0<d1,o);}
+  if(nc&&!p.n){nc.name="지점 "+(CP.indexOf(nc)+1);nc._auto=nc.name;}
+  return nc;}
+// 넣은 지점의 시각·오름/내림(고도) · 이름 없는 지점은 고도로 무명봉/안부
+function acTimes(list){var asks=[],all=[];
+  list.forEach(function(c){var i=CP.indexOf(c);if(i<1||i>=CP.length-1||!SEG[i-1]||!SEG[i])return;var s1=resample(SEG[i-1],100),s2=resample(SEG[i],100);if(!s1.length||!s2.length)return;asks.push({c:c,s1:s1,s2:s2});all=all.concat(s1,s2);});
+  if(!asks.length)return Promise.resolve(false);
+  return fetchEle(all).then(function(){var ch=0;asks.forEach(function(x){var c=x.c,i=CP.indexOf(c);if(i<1||i>=CP.length-1)return;var a=CP[i-1],b=CP[i+1];
+      var e1=x.s1.map(function(p){return ELE[eleKey(p)];}),e2=x.s2.map(function(p){return ELE[eleKey(p)];});if(e1.concat(e2).some(function(e){return e==null||!isFinite(e);}))return;
+      var c1=hpClimb(eleFix(e1)),c2=hpClimb(eleFix(e2)),w=META&&META.extra&&META.extra.plan&&META.extra.plan.winter;
+      var m1=hpLegMin(c.km-a.km,c1.up,c1.dn,PACE,a.route==="fixed",+c.rough>1?+c.rough:0,w),m2=hpLegMin(b.km-c.km,c2.up,c2.dn,PACE,c.route==="fixed",+b.rough>1?+b.rough:0,w);
+      var ta=hm(a.depart||a.arrive),tb=hm(b.arrive);if(ta!=null&&tb!=null&&m1+m2>0){if(tb<ta)tb+=1440;c.arrive=fmt(ta+(tb-ta)*m1/(m1+m2));}
+      c.up=Math.round(c1.up);c.dn=Math.round(c1.dn);if(a.up!=null||b.up!=null){b.up=Math.round(c2.up);b.dn=Math.round(c2.dn);}
+      if(c._auto&&c.name===c._auto){var e=e1[e1.length-1],v=e1.slice(-4,-1).concat(e2.slice(1,4));
+        var top=v.length>=2&&v.every(function(z){return e>=z-2;})&&v.some(function(z){return e-z>=8;}),low=v.length>=2&&v.every(function(z){return e<=z+2;})&&v.some(function(z){return z-e>=8;});
+        c.name=(top?"무명봉":low?"안부":c._auto)+" ("+Math.round(e)+"m)";if(top)c.peak=true;}
+      delete c._auto;ch++;});
+    if(ch){drawAll();renderPanels();if(mode&&mode.k==="addcp"){acPaint();acBar();}}return ch>0;}).catch(function(){list.forEach(function(c){delete c._auto;});return false;});}
 function metersPerPx(){var c=map.getCenter(),z=map.getZoom();return 156543.03*Math.cos(c.lat*RAD)/Math.pow(2,z);}
 function simplify(pts,tol){if(pts.length<3)return pts;var keep=new Uint8Array(pts.length);keep[0]=keep[pts.length-1]=1;var st=[[0,pts.length-1]];
   while(st.length){var r=st.pop(),a=r[0],b=r[1],md=0,mi=-1;for(var i=a+1;i<b;i++){var d=projSeg(pts[i],pts[a],pts[b]).d;if(d>md){md=d;mi=i;}}if(md>tol){keep[mi]=1;st.push([a,mi],[mi,b]);}}
@@ -1136,7 +1210,7 @@ function indexEntry(o,path,by,prev){var e={id:o.id,name:o.name,updatedAt:o.updat
   else if(prev){e.tg=prev.tg;e.pin=prev.pin;}
   e.cpn=cpNamesE(o.checkpoints);return e;}
 function renderCps(){var p=$("p-cps");p.textContent="";if(!META){p.appendChild(h("p",{cls:"msg",text:"코스를 먼저 여세요."}));return;}
-  p.appendChild(h("div",{cls:"row"},[h("button",{cls:mode&&mode.k==="addcp"?"on":"",text:"＋ 지도에서 지점 추가",onclick:startAddCp}),APP?h("button",{text:"📍 내 위치에 지점 추가",onclick:hereAdd}):null]));
+  p.appendChild(h("div",{cls:"row"},[h("button",{cls:mode&&mode.k==="addcp"?"on":"",text:"＋ 지도에서 지점 추가",title:"경로를 누르면 이름이 자동으로 붙고, 완료(Esc)까지 계속 넣을 수 있어요",onclick:startAddCp}),(function(){var k=mode?0:acCatCands().length;return k?h("button",{text:"◆ 인증 지점 모두 넣기 ("+k+")",title:"경로가 지나는데 지점이 없는 인증 지점을 한 번에 넣어요",onclick:function(){startAddCp();acAddAllCat();}}):null;})(),APP?h("button",{text:"📍 내 위치에 지점 추가",onclick:hereAdd}):null]));
   p.appendChild(h("p",{cls:"msg",text:"지점 표시를 끌어서 옮겨요. 선택한 지점의 빨간 손잡이를 끌면 도착 인정 반경이 바뀌어요. 봉우리(정상)로 표시한 지점은 반경이 빨간 원으로 보여요."}));
   p.appendChild(h("p",{cls:"msg",text:"지점을 고르면 '예상 속도'(앞 지점 출발 → 이 지점 도착)를 바꿀 수 있어요. 바꾸면 도착 시각이 다시 계산되고 뒤 지점도 같이 밀리거나 당겨져요(쉬는 시간 유지, 컷오프·마감은 그대로)."}));
   var sp0=planSpanE();if(sp0)p.appendChild(h("p",{cls:"msg",style:"font-weight:700",text:sp0}));
@@ -1390,7 +1464,7 @@ var HELP=[
   ["도착 인정 반경","지점을 고른 뒤 원 가장자리의 빨간 손잡이를 끌기, 또는 지점 탭에서 숫자 입력 (봉우리 지점은 빨간 원)"],
   ["인증 지점 위치 (100대 명산 등)","코스 탭에서 그 지점을 고르고 '위치 편집'을 켠 뒤 빨간 ◆ 표시를 끌어 옮기거나 코스 탭에서 위도·경도 입력. 코스를 안 열었으면 코스 탭에서 이름으로 찾기 → '인증 지점 올리기'"],
   ["인증 반경 (100대 명산 등)","빨간 점선 원을 누르고 손잡이를 끌기 → 코스 탭의 '인증 지점 올리기'"],
-  ["지점 추가","경로 위에서 오른쪽 클릭, 또는 지점 탭의 '지도에서 지점 추가'"],
+  ["지점 추가","지점 탭 '지도에서 지점 추가' → 경로를 누를 때마다 지점이 들어가요(이름 자동: 인증 지점 → 이름 있는 곳 → 고도로 무명봉·안부 · 완료/Esc까지 계속). ◆ 인증 지점·● 이름 있는 곳 후보를 눌러도 되고, '인증 지점 모두 넣기'로 한 번에. 시각은 그 구간 시간을 고도로 나눠 넣어요. 경로 오른쪽 클릭은 예전처럼 '새 지점' 하나"],
   ["구간 다시 그리기","구간 탭 → 다시 그리기 → 지도를 차례로 클릭 ('등산로 따라'를 켜면 등산로를 따라 이어요)"],
   ["등산로에 맞추기","코스 탭(전체) 또는 구간 탭(한 구간). '고정' 구간(도로 등)은 그대로 둬요"],
   ["배경 지도","왼쪽 위 지도 선택 (지형·일반·위성·오픈스트리트맵·네이버 일반/위성/지형)"]]}];
@@ -1474,20 +1548,22 @@ function nwLoad(c,view){var a,b;if(view){var vb=map.getBounds();a=[vb.getSouth()
   NW.load="등산로·이름 있는 곳을 받는 중…";renderNew();
   return ensureNet([a,b]).then(function(){NW&&(NW.load="");return nwPois(NET_BOX);},function(e){if(NW){NW.load="등산로를 받지 못했어요 · "+e.message+" (지점끼리 직선으로 이어져요)";renderNew();}});}
 function nwPois(b){if(!NW)return Promise.resolve();if(NW.poiBox&&b[0]>=NW.poiBox[0]&&b[1]>=NW.poiBox[1]&&b[2]<=NW.poiBox[2]&&b[3]<=NW.poiBox[3]){renderNew();return Promise.resolve();}
-  var bb=b.map(function(x){return x.toFixed(5);}).join(","),f=function(k){return 'nwr["name"]'+k+'('+bb+');';};
+  return poiQuery(b).then(function(out){if(!NW)return;NW.pois=out;NW.poiBox=b;drawNew();renderNew();}).catch(function(e){if(NW){NW.load="이름 있는 곳을 받지 못했어요 · "+e.message+" (지점은 '지점 N'으로 들어가요)";renderNew();}});}
+// 범위 b [남,서,북,동] 안의 이름 있는 곳(봉우리·고개·쉼터·이정표·정류장…) · 새 산행과 지점 추가(v9.5)가 같이 씀
+function poiQuery(b){var bb=b.map(function(x){return x.toFixed(5);}).join(","),f=function(k){return 'nwr["name"]'+k+'('+bb+');';};
   var q='[out:json][timeout:40];('+f('["natural"~"^(peak|hill|volcano|saddle|rock|stone|cliff|spring|cave_entrance)$"]')+f('["tourism"~"^(viewpoint|information|alpine_hut|wilderness_hut|attraction|picnic_site)$"]')+
     f('["amenity"~"^(shelter|parking|townhall|place_of_worship)$"]')+f('["highway"~"^(bus_stop|trailhead)$"]')+f('["railway"~"^(station|halt)$"]')+f('["mountain_pass"="yes"]')+f('["historic"]')+'node["waterway"="waterfall"]('+bb+');'+');out center tags qt;';
-  return overpass(q).then(function(j){if(!NW)return;var out=[];(j.elements||[]).forEach(function(x){var t=x.tags||{},k=nwKind(t),n=nwPoiName(t,k[0]),la=x.lat!=null?x.lat:x.center&&x.center.lat,lo=x.lon!=null?x.lon:x.center&&x.center.lon;if(!n||la==null)return;
+  return overpass(q).then(function(j){var out=[];(j.elements||[]).forEach(function(x){var t=x.tags||{},k=nwKind(t),n=nwPoiName(t,k[0]),la=x.lat!=null?x.lat:x.center&&x.center.lat,lo=x.lon!=null?x.lon:x.center&&x.center.lon;if(!n||la==null)return;
       if(!k[0])return;var gap=k[0]==="버스 정류장"?80:30;if(out.some(function(o){return o.n===n&&hav([o.lat,o.lon],[la,lo])<gap;}))return;
       out.push({n:n,k:k[0],peak:!!k[1],lat:la,lon:lo,ele:isFinite(+t.ele)&&t.ele?Math.round(+t.ele):null});});
-    NW.pois=out;NW.poiBox=b;drawNew();renderNew();}).catch(function(e){if(NW){NW.load="이름 있는 곳을 받지 못했어요 · "+e.message+" (지점은 '지점 N'으로 들어가요)";renderNew();}});}
+    return out;});}
 // ---- ② 지점 찍기 ----
 function nwHitTol(){return Math.max(25,14*metersPerPx());}
 // 누른 곳 근처: 인증 지점(50m, 가장 먼저) → 오픈스트리트맵 이름 있는 곳
-function nwFind(ll,tol){var best=null;
+function nwFind(ll,tol,pois){var best=null;
   if(CAT)Object.keys(CAT.targets).forEach(function(id){var t=CAT.targets[id];if(t.lat==null)return;var d=hav(ll,[t.lat,t.lon]);if(d<=Math.max(tol,50)&&(!best||d<best.d))best={src:"cat",tid:id,d:d,lat:t.lat,lon:t.lon,n:tgtName(t),k:"인증 지점",peak:true};});
   if(best)return best;
-  (NW.pois||[]).forEach(function(o){var d=hav(ll,[o.lat,o.lon]);if(d<=tol&&(!best||d<best.d))best={src:"osm",d:d,lat:o.lat,lon:o.lon,n:o.n,k:o.k,peak:o.peak,ele:o.ele};});
+  (pois||(NW&&NW.pois)||[]).forEach(function(o){var d=hav(ll,[o.lat,o.lon]);if(d<=tol&&(!best||d<best.d))best={src:"osm",d:d,lat:o.lat,lon:o.lon,n:o.n,k:o.k,peak:o.peak,ele:o.ele};});
   return best;}
 // 가장 가까운 등산로 점 (maxM 안)
 function nwNetNear(ll,maxM){if(!NET)return null;var cosl=Math.cos(ll[0]*RAD),M=111320,bi=-1,bd=maxM;for(var i=0;i<NET.n;i++){var dy=(NET.lat[i]-ll[0])*M,dx=(NET.lon[i]-ll[1])*M*cosl,d=Math.sqrt(dx*dx+dy*dy);if(d<bd){bd=d;bi=i;}}
@@ -1696,7 +1772,7 @@ window.__ce={openText:openText,state:function(){return {META:META,CP:CP,SEG:SEG,
   gpxApplyAll:gpxApplyAll,kmFromRoute:kmFromRoute,upload:upload,uploadCatalog:uploadCatalog,connect:connect,undo:undo,redo:redo,openCloud:openCloud,
   setRepo:function(r,t){REPO=r;TOKEN=t;},map:map,
   recalcModel:recalcModel,beforeSave:beforeSave,routeChanged:routeChanged,resample:resample,setEle:function(f){ELE={};ELE_SRC='';window.__eleFn=f;},eleFix:eleFix,eleSrc:function(v){if(v!==undefined)ELE_SRC=v;return ELE_SRC;},pace:function(p){if(p!==undefined)setPace(p,true);return PACE;},
-  nwStart:nwStart,nwState:function(){return NW;},nwRefreshNotes:nwRefreshNotes,nwRetry:nwRetry,nwDraft:nwDraft,nwResume:nwResume,netBox:function(){return NET_BOX;},nwClick:nwClick,nwBuild:nwBuild,nwSearch:function(q){NW.q=q;nwSearch();},nwChoose:nwChoose,nwPref:nwPref,nwInsertTgt:nwInsertTgt,nwTargets:nwTargets,nwLabel:nwLabel,netRoute:netRoute,ensureNet:ensureNet,
+  startAddCp:startAddCp,endMode:endMode,acAddAllCat:acAddAllCat,acUndo:acUndo,acCatCands:acCatCands,acPoiCands:acPoiCands,acPoi:function(){return AC_POI;},nwStart:nwStart,nwState:function(){return NW;},nwRefreshNotes:nwRefreshNotes,nwRetry:nwRetry,nwDraft:nwDraft,nwResume:nwResume,netBox:function(){return NET_BOX;},nwClick:nwClick,nwBuild:nwBuild,nwSearch:function(q){NW.q=q;nwSearch();},nwChoose:nwChoose,nwPref:nwPref,nwInsertTgt:nwInsertTgt,nwTargets:nwTargets,nwLabel:nwLabel,netRoute:netRoute,ensureNet:ensureNet,
   paceTrack:paceTrack,paceSamples:paceSamples,paceSegs:paceSegs,paceFit:paceFit,paceSolve:paceSolve,planCps:planCps,fetchEle:fetchEle,hpModelMin:hpModelMin,hpPlan:hpPlan,hm:hm};
 setLayer(LAYERS.hasOwnProperty(startLayer)?startLayer:"지형 (OpenTopoMap)");
 renderPanels();
