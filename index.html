@@ -111,6 +111,12 @@ body.app #locB{display:block}
 .nwp{position:relative;width:0;height:0}.nwp i{position:absolute;left:-5px;top:-5px;width:10px;height:10px;border-radius:50%;background:#475569;border:2px solid #fff;box-sizing:border-box;cursor:pointer;box-shadow:0 0 2px rgba(0,0,0,.5)}
 .nwp.pk i{background:#c2410c;width:12px;height:12px;left:-6px;top:-6px}
 .nwp b{position:absolute;left:9px;top:-9px;font-size:11px;font-weight:700;color:#334155;white-space:nowrap;text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 3px #fff;pointer-events:none}.nwp.pk b{color:#9a3412}
+body.keys [data-key]{position:relative;overflow:visible}body.keys [data-key]::after{content:attr(data-key);position:absolute;top:-9px;right:-6px;z-index:5;background:#b45309;color:#fff;font:700 10px/1.5 system-ui,sans-serif;padding:0 4px;border-radius:4px;white-space:nowrap;pointer-events:none}
+body.keys select[data-key]{outline:2px solid #b45309}body.keys h1 [data-key]::after{top:50%;right:auto;left:50%;transform:translate(-50%,-50%)}
+#keyCard{position:absolute;right:12px;top:12px;z-index:1200;background:#fff;border:1px solid #cbd5e1;border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,.18);padding:10px 12px;width:min(620px,calc(100% - 24px));max-height:calc(100% - 24px);overflow:auto;font-size:12px}
+#keyCard .kh{display:flex;align-items:center;gap:10px;margin-bottom:6px}#keyCard .kh b{font-size:14px}#keyCard .kh span{color:#64748b;flex:1}
+#keyCard .kg{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:4px 16px}#keyCard h4{margin:8px 0 3px;font-size:12px;color:#334155}
+#keyCard .kr{display:flex;gap:8px;align-items:baseline;padding:1px 0}#keyCard kbd{flex:none;min-width:58px;font:600 11px/1.5 ui-monospace,monospace;background:#f1f5f9;border:1px solid #cbd5e1;border-bottom-width:2px;border-radius:4px;padding:0 5px;text-align:center}
 .acc{position:relative;width:0;height:0}.acc i{position:absolute;left:-6px;top:-6px;width:12px;height:12px;border-radius:50%;background:#fff;border:2px solid #6b7280;box-sizing:border-box;cursor:pointer}.acc b{position:absolute;left:9px;top:-9px;font-size:11px;font-weight:700;color:#374151;white-space:nowrap;text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 3px #fff;cursor:pointer}.acc.cat i{left:-9px;top:-9px;width:18px;height:18px;border:3px dashed #b71c1c;background:#fde2e1}.acc.cat b{left:12px;top:-10px;color:#b71c1c}
 .nwk{position:relative;width:0;height:0}.nwk i{position:absolute;left:-11px;top:-11px;width:22px;height:22px;border-radius:50%;background:#e8590c;color:#fff;font-style:normal;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-sizing:border-box;box-shadow:0 1px 4px rgba(0,0,0,.45)}
 .nwk.ct i{background:#b71c1c}.nwk b{position:absolute;left:14px;top:-10px;background:rgba(255,255,255,.95);border:1px solid #e8590c;border-radius:6px;padding:0 5px;font-size:11px;white-space:nowrap;font-weight:700;color:#9a3412;pointer-events:none}
@@ -124,7 +130,7 @@ body.app #modebar{left:56px;right:8px;transform:none;flex-wrap:wrap;font-size:13
   <aside id="side">
     <div id="grab" title="끌어올리기/내리기"></div>
     <div id="top">
-      <h1><span id="ttl">산행 페이스 코스 편집기</span><span class="row"><button class="sm" id="helpB" title="도움말">? 도움말</button><button class="sm" id="undoB" title="되돌리기 (Ctrl+Z)">↶</button><button class="sm" id="redoB" title="다시 (Ctrl+Y)">↷</button></span></h1>
+      <h1><span id="ttl">산행 페이스 코스 편집기</span><span class="row"><button class="sm" id="helpB" title="도움말 (F1) · 단축키 카드는 ?">? 도움말</button><button class="sm" id="undoB" title="되돌리기 (Ctrl+Z)">↶</button><button class="sm" id="redoB" title="다시 (Ctrl+Y)">↷</button></span></h1>
       <div class="row">
         <button id="newB" title="산 이름을 찾고 지도에서 지점을 찍어 새 코스 만들기">＋ 새 산행</button>
         <button id="openB">파일 열기</button>
@@ -514,7 +520,7 @@ function paintPtbar(list){var bar=$("ptbar");if(!list.length){bar.style.display=
   bar.appendChild(h("span",{cls:"t",text:(list.length>1?(list[0]+1)+"·"+(list[1]+1)+"구간":(list[0]+1)+"구간")+" 점 "+n+"개"}));
   [["move","이동","끌어서 옮기기 · 사이 점을 끌면 새 점 (1)"],["add","추가","지도를 누르면 그 자리에 점 추가 (2)"],["del","삭제","점을 누르면 삭제 (3)"],["range","범위 삭제","두 점을 차례로 누르면 그 사이 점을 모두 삭제 (4)"]].forEach(function(x){
     bar.appendChild(h("button",{cls:PM===x[0]?"on":"",text:x[1],title:x[2],onclick:function(){setPM(x[0]);}}));});
-  var tol=h("select",{title:"방향이 거의 안 바뀌는 점을 지워요"},[h("option",{value:"",text:"점 줄이기…"})].concat([2,5,10,20].map(function(v){return h("option",{value:v,text:v+"m 이내 정리"});})));
+  var tol=h("select",{id:"tolSel",title:"방향이 거의 안 바뀌는 점을 지워요"},[h("option",{value:"",text:"점 줄이기…"})].concat([2,5,10,20].map(function(v){return h("option",{value:v,text:v+"m 이내 정리"});})));
   tol.onchange=function(){var t=+tol.value;if(!t)return;push();var before=0,after=0;list.forEach(function(i){before+=SEG[i].length;SEG[i]=simplify(SEG[i],t);after+=SEG[i].length;HOW[i]="편집";});drawAll();renderPanels();toast(before+" → "+after+"점");};
   bar.appendChild(tol);
   bar.appendChild(h("button",{text:"↶",title:"되돌리기 (Ctrl+Z)",onclick:undo}));
@@ -1528,6 +1534,8 @@ function renderHelp(){var p=$("p-help");p.textContent="";var w=h("div",{cls:"hp"
   w.appendChild(h("div",{cls:"row"},[h("button",{text:"← 돌아가기",onclick:function(){showTab(META?"segs":"course");}})]));
   HELP.forEach(function(sec){w.appendChild(h("h3",{text:sec.t}));if(sec.d)w.appendChild(h("p",{cls:"msg",text:sec.d}));
     w.appendChild(h("table",null,[h("thead",null,[h("tr",null,sec.h.map(function(x){return h("th",{text:x});}))]),h("tbody",null,sec.rows.map(function(r){return h("tr",null,r.map(function(x){return h("td",{text:x});}));}))]));});
+  w.appendChild(h("h3",{text:"단축키 전체 (? 를 누르면 지도 위에 카드로 · Alt 를 누르고 있으면 버튼에 표시)"}));
+  w.appendChild(h("table",null,[h("thead",null,[h("tr",null,["묶음","키","동작"].map(function(x){return h("th",{text:x});}))]),h("tbody",null,KEYS.map(function(x){return h("tr",null,[h("td",{text:x.g}),h("td",{text:x.k}),h("td",{text:x.l})]);}))]));
   w.appendChild(h("h3",{text:"코스 다듬는 순서"}));w.appendChild(h("ol",null,HELP_STEPS.map(function(x){return h("li",{text:x});})));
   p.appendChild(w);}
 function showHelp(){renderHelp();showTab("help");}
@@ -1542,16 +1550,65 @@ $("saveB").onclick=function(){if(!META)return;applyRule(true);var pr=problems();
   var s=JSON.stringify(toPublic(),null,1),a=h("a",{href:URL.createObjectURL(new Blob([s],{type:"application/json"})),download:META.name.replace(/[\\/:*?"<>|\s]+/g,"_")+".json"});document.body.appendChild(a);a.click();a.remove();
   lastSaved=new Date().toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"});setDirty(false);toast("파일로 저장했어요 · 휴대폰에서 '코스 가져오기'로 넣어도 돼요");};
 $("newB").onclick=function(){nwStart();};$("upB").onclick=upload;$("undoB").onclick=undo;$("redoB").onclick=redo;
+// ============ 단축키 (v9.9, 2026-11-22 사용자 요청 C안) ============
+// KEYS 한 곳에 적으면: 키 처리 · Alt 를 누르고 있는 동안 버튼 배지(data-key) · 버튼 툴팁 · '?' 단축키 카드 · 도움말 표가 모두 이걸 씀
+// b: 누를 버튼(#id · 정확한 글자 "=…" · 앞부분 "^…") — 없거나 꺼져 있으면 "지금은 쓸 수 없어요" · fn: 직접 동작
+var TABS=["course","cps","segs","recs","gpx","repo"],TABN=["코스","지점","구간","기록","GPX","저장소"];
+var KEYS=[
+ {k:"Ctrl+O",g:"파일",l:"파일 열기",b:"#openB"},{k:"Ctrl+S",g:"파일",l:"파일로 저장",b:"#saveB"},{k:"Ctrl+Shift+S",g:"파일",l:"앱에 올리기",b:"#upB"},{k:"N",g:"파일",l:"＋ 새 산행",b:"#newB"}
+].concat(TABS.map(function(t,i){return {k:"Alt+"+(i+1),g:"탭",l:TABN[i]+" 탭",b:'#tabs button[data-t="'+t+'"]'};})).concat([
+ {k:"A",g:"지점",l:"지도에서 지점 추가 (Esc·완료까지 계속)",b:"=＋ 지도에서 지점 추가"},{k:"Shift+A",g:"지점",l:"인증 지점 모두 넣기",b:"^◆ 인증 지점 모두 넣기"},
+ {k:"[",g:"지점",l:"이전 지점 고르기",fn:function(){keyStep(-1);}},{k:"]",g:"지점",l:"다음 지점 고르기",fn:function(){keyStep(1);}},
+ {k:"Delete",g:"지점",l:"고른 지점 삭제 (출발·도착 제외)",b:"=지점 삭제",fn:function(){if(sel.t!=="cp"||!CP[sel.i])return keyNo("지점을 먼저 고르세요");var dn=CP[sel.i].name,dl=CP.length;delCp(sel.i);if(CP.length<dl)toast("'"+dn+"' 지점을 지웠어요 · Ctrl+Z 로 되돌리기");}},
+ {k:"1~4",g:"경로",l:"점 편집: 이동·추가·삭제·범위 삭제 (구간·지점을 고른 뒤)",info:1},
+ {k:"-",g:"경로",l:"점 줄이기 (고를 거리 목록 열기)",b:"#tolSel",fn:function(){var t=$("tolSel");if(!t||!t.offsetParent)return keyNo("구간을 먼저 고르세요");t.focus();try{t.showPicker();}catch(e){}}},
+ {k:"D",g:"경로",l:"고른 구간 다시 그리기",b:"=다시 그리기"},{k:"M",g:"경로",l:"고른 구간 등산로에 맞추기",b:"=등산로에 맞추기"},
+ {k:"R",g:"계산",l:"시각 다시 계산 (공식 시간 규칙 코스는 규칙으로)",b:"=고도로 시각 다시 계산",fn:function(){if(!META)return keyNo("코스를 먼저 여세요");if(hasRule()){applyRule();renderPanels();return;}var b=keyBtn("=고도로 시각 다시 계산");if(b&&!b.disabled)b.click();else keyNo();}},
+ {k:"F",g:"보기",l:"코스 전체 보기 (지도 맞추기)",b:"=지도 맞추기",fn:function(){if(!META)return keyNo("코스를 먼저 여세요");fitAll();}},
+ {k:"Ctrl+Z",s:"^Z",g:"공통",l:"되돌리기",b:"#undoB"},{k:"Ctrl+Y",s:"^Y",g:"공통",l:"다시 하기 (Ctrl+Shift+Z)",b:"#redoB"},
+ {k:"Esc",g:"공통",l:"모드·카드 닫기 (지점 추가·그리기·점 편집 끝내기)",info:1},
+ {k:"?",g:"공통",l:"단축키 카드 열기·닫기",fn:function(){keyCard();}},{k:"F1",g:"공통",l:"도움말 탭",b:"#helpB"},
+ {k:"Alt (누르고 있기)",g:"공통",l:"버튼마다 단축키 배지 보기",info:1}]);
+function keyNo(m){toast(m||"지금은 쓸 수 없어요");}
+// 버튼 찾기: 보이는 것 먼저
+function keyBtns(b){if(!b)return [];if(b[0]==="#"||b[0]==="[")return [].slice.call(document.querySelectorAll(b));
+  var ex=b[0]==="=",t=b.slice(1);return [].filter.call(document.querySelectorAll("button"),function(x){var s=x.textContent.trim();return ex?s===t:s.indexOf(t)===0;});}
+function keyBtn(b){var L=keyBtns(b);return L.filter(function(x){return x.offsetParent;})[0]||L[0]||null;}
+function keyStep(d){if(!META||!CP.length)return keyNo("코스를 먼저 여세요");var i=sel.t==="cp"?sel.i+d:(d>0?0:CP.length-1);i=Math.max(0,Math.min(CP.length-1,i));
+  select("cp",i);if(CP[i].lat!=null)map.panTo([CP[i].lat,CP[i].lon]);}
+function keyMatch(e,k){var p=k.split("+"),key=p.pop().toLowerCase(),c=p.indexOf("Ctrl")>=0,sh=p.indexOf("Shift")>=0,al=p.indexOf("Alt")>=0;
+  var ek=e.key.toLowerCase();if(key==="delete")return ek==="delete"&&!e.ctrlKey&&!e.altKey;
+  if(/^\d$/.test(key)&&al)return e.altKey&&(e.code==="Digit"+key);
+  if(key==="?"||key==="["||key==="]"||key==="-")return e.key===key&&!e.ctrlKey&&!e.metaKey&&!e.altKey;
+  return ek===key&&(e.ctrlKey||e.metaKey)===c&&e.shiftKey===sh&&e.altKey===al;}
+function keyRun(x){if(x.fn)return x.fn();var b=keyBtn(x.b);if(!b||b.disabled)return keyNo(x.l+" — 지금은 쓸 수 없어요");b.click();}
+// 버튼에 배지·툴팁 달기 (Alt 를 누를 때와 화면이 바뀔 때)
+function keyMark(){KEYS.forEach(function(x){if(x.info||!x.b)return;keyBtns(x.b).forEach(function(b){if(b.dataset.key===(x.s||x.k))return;b.dataset.key=x.s||x.k;
+  var t=b.getAttribute("title")||"";if(t.indexOf("("+x.k+")")<0)b.setAttribute("title",(t||b.textContent.trim())+" ("+x.k+")");});});}
+var keyMO=null;function keyWatch(){if(keyMO||!window.MutationObserver)return;var pend=0;keyMO=new MutationObserver(function(){if(pend)return;pend=1;requestAnimationFrame(function(){pend=0;keyMark();});});keyMO.observe(document.body,{childList:true,subtree:true});keyMark();}
+// '?' 단축키 카드 (지도 위)
+function keyCard(force){var c=$("keyCard");if(c&&force!==true){c.remove();return;}if(c)c.remove();
+  c=h("div",{id:"keyCard"});c.appendChild(h("div",{cls:"kh"},[h("b",{text:"단축키"}),h("span",{text:"? 또는 Esc 로 닫기 · Alt 를 누르고 있으면 버튼에 표시"}),h("button",{cls:"sm",text:"✕",onclick:function(){keyCard();}})]));
+  var gs=[];KEYS.forEach(function(x){if(gs.indexOf(x.g)<0)gs.push(x.g);});
+  var w=h("div",{cls:"kg"});gs.forEach(function(g){var d=h("div",null,[h("h4",{text:g})]);KEYS.filter(function(x){return x.g===g;}).forEach(function(x){d.appendChild(h("div",{cls:"kr"},[h("kbd",{text:x.k}),h("span",{text:x.l})]));});w.appendChild(d);});
+  c.appendChild(w);c.appendChild(h("button",{cls:"sm",text:"자세한 도움말 (F1)",onclick:function(){keyCard();showHelp();}}));$("mapWrap").appendChild(c);}
+function keysOn(on){document.body.classList.toggle("keys",!!on);if(on)keyMark();}
+window.addEventListener("blur",function(){keysOn(false);});
+document.addEventListener("keyup",function(e){if(e.key==="Alt"){e.preventDefault();keysOn(false);}});
 document.addEventListener("keydown",function(e){var tag=(e.target.tagName||"").toLowerCase(),typing=tag==="input"||tag==="textarea"||tag==="select";
+  if(e.key==="Alt"){e.preventDefault();keysOn(true);return;}
+  if(e.key==="Escape"&&$("keyCard")){$("keyCard").remove();return;}
   if(e.key==="Escape"&&mode){endMode();return;}if(e.key==="Escape"&&PM!=="move"){setPM("move");return;}
-  if(typing)return;
-  if(e.key==="?"||e.key==="F1"){e.preventDefault();showHelp();return;}
-  if(!e.ctrlKey&&!e.metaKey&&editSegs().length&&"1234".indexOf(e.key)>=0&&e.key){setPM(["move","add","del","range"][+e.key-1]);return;}
-  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="z"){e.preventDefault();if(e.shiftKey)redo();else undo();}
-  else if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="y"){e.preventDefault();redo();}
-  // Delete: 선택한 지점 삭제 (v9.8, 2026-11-22 사용자 요청 · 출발·도착은 delCp 가 막음 · Ctrl+Z 로 되돌리기)
-  else if(e.key==="Delete"&&!mode&&META&&sel.t==="cp"&&CP[sel.i]){e.preventDefault();var dn=CP[sel.i].name,dl=CP.length;delCp(sel.i);if(CP.length<dl)toast("'"+dn+"' 지점을 지웠어요 · Ctrl+Z 로 되돌리기");}
-  else if(e.key==="Backspace"&&mode&&mode.k==="draw"&&mode.steps.length){var n=mode.steps.pop();mode.pts.splice(mode.pts.length-n,n);paintDraw();}});
+  if(e.key==="F1"){e.preventDefault();showHelp();return;}
+  if(typing){if(!((e.ctrlKey||e.metaKey)&&/^[os]$/i.test(e.key)))return;e.target.blur();} // 입력칸에서도 Ctrl+S·Ctrl+O (먼저 입력 반영)
+  if(!e.ctrlKey&&!e.metaKey&&!e.altKey&&editSegs().length&&"1234".indexOf(e.key)>=0&&e.key){setPM(["move","add","del","range"][+e.key-1]);return;}
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="z"){e.preventDefault();if(e.shiftKey)redo();else undo();return;}
+  if(e.key==="Backspace"&&mode&&mode.k==="draw"&&mode.steps.length){var n=mode.steps.pop();mode.pts.splice(mode.pts.length-n,n);paintDraw();return;}
+  for(var q=0;q<KEYS.length;q++){var x=KEYS[q];if(x.info||!keyMatch(e,x.k))continue;
+    if(mode&&!/^(Ctrl|\?)/.test(x.k)&&x.k!=="F")return; // 모드 중에는 저장·되돌리기·카드·보기만
+    if(x.k==="Delete"&&mode)return;e.preventDefault();keyRun(x);return;}
+  if(e.altKey)keysOn(true);});
+keyWatch();
 var dz=$("drop"),dc=0;
 window.addEventListener("dragenter",function(e){e.preventDefault();dc++;dz.style.display="flex";});
 window.addEventListener("dragleave",function(e){dc--;if(dc<=0){dc=0;dz.style.display="none";}});
