@@ -1505,6 +1505,7 @@ var HELP=[
   ["삭제","3","점을 누르면 지워짐 (이동 모드에서는 오른쪽 클릭·더블클릭)","필요 없는 점 하나를 없앨 때"],
   ["범위 삭제","4","두 점을 차례로 누르면 그 사이의 점을 모두 지움","지그재그 구간을 한 번에 정리할 때"],
   ["점 줄이기","-","2·5·10·20m 안에서 방향이 거의 안 바뀌는 점을 지우고 꺾이는 점만 남김","점이 너무 많을 때 (1,500개 넘으면 편집이 꺼짐)"],
+  ["지점 삭제","Delete","지도나 지점 탭에서 고른 지점을 지워요 (출발·도착은 안 지워짐)","지점 정리할 때"],
   ["되돌리기","Ctrl+Z","방금 한 편집을 취소 (다시 하기 Ctrl+Y)","실수했을 때"],
   ["이동 모드로","Esc","추가·삭제·범위 삭제 모드를 끝내고 이동 모드로","모드를 빠져나올 때"]]},
  {t:"'기록' 탭 (GitHub의 내 산행 기록)",h:["기능","설명"],rows:[
@@ -1548,6 +1549,8 @@ document.addEventListener("keydown",function(e){var tag=(e.target.tagName||"").t
   if(!e.ctrlKey&&!e.metaKey&&editSegs().length&&"1234".indexOf(e.key)>=0&&e.key){setPM(["move","add","del","range"][+e.key-1]);return;}
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="z"){e.preventDefault();if(e.shiftKey)redo();else undo();}
   else if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="y"){e.preventDefault();redo();}
+  // Delete: 선택한 지점 삭제 (v9.8, 2026-11-22 사용자 요청 · 출발·도착은 delCp 가 막음 · Ctrl+Z 로 되돌리기)
+  else if(e.key==="Delete"&&!mode&&META&&sel.t==="cp"&&CP[sel.i]){e.preventDefault();var dn=CP[sel.i].name,dl=CP.length;delCp(sel.i);if(CP.length<dl)toast("'"+dn+"' 지점을 지웠어요 · Ctrl+Z 로 되돌리기");}
   else if(e.key==="Backspace"&&mode&&mode.k==="draw"&&mode.steps.length){var n=mode.steps.pop();mode.pts.splice(mode.pts.length-n,n);paintDraw();}});
 var dz=$("drop"),dc=0;
 window.addEventListener("dragenter",function(e){e.preventDefault();dc++;dz.style.display="flex";});
