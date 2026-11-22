@@ -1256,6 +1256,47 @@ function hpNotesTime(notes,o){var pl=hpPlan(hpPlanCps(o)),s=String(notes||""),c0
   if(re1.test(s))return s.replace(re1,m1);
   var re2=/이동 \d+:\d\d \+ 휴식 \d+:\d\d = 총 \d+:\d\d( · 전체 평균 [\d.]+km\/h \(휴식 포함\))?/;if(re2.test(s))return s.replace(re2,hpPlanLine(pl));
   return (s?s.replace(/\s+$/,"")+"\n":"")+"시간표: "+hpPlanLine(pl);}
+// ---- 둘레길 이어 걷기 (v10.1, 2026-11-23 사용자 요청 C안) ----
+// 기록 GPS 가 코스 트랙의 어디를 지났는지 = 걸은 조각 [[a,b] km] (방향 상관없음). 정맥 이어 걷기(한 점 진행)와 달리 순서·방향·건너뛰기 자유.
+// track [[lat,lon,km]], pts [[lat,lon,…]] · tol 트랙에서 이만큼(m) 안이면 지난 것 · 조각 사이 0.15km 이하 틈은 이음 · 0.2km 미만 조각(길 건너기 등)은 버림
+function hpIvMerge(iv,gap){gap=gap==null?0.15:gap;var a=iv.filter(function(x){return x&&x[1]>x[0];}).map(function(x){return [x[0],x[1]];}).sort(function(x,y){return x[0]-y[0];}),o=[];
+  a.forEach(function(x){var l=o[o.length-1];if(l&&x[0]<=l[1]+gap)l[1]=Math.max(l[1],x[1]);else o.push(x);});return o;}
+function hpIvLen(iv){return iv.reduce(function(s,x){return s+x[1]-x[0];},0);}
+function hpCover(track,pts,tol){tol=tol||50;if(!track||track.length<2||!pts||!pts.length)return [];
+  var la0=track[0][0],kx=111320*Math.cos(la0*Math.PI/180),ky=110540,T=track.map(function(q){return [(q[1]-track[0][1])*kx,(q[0]-la0)*ky,+q[2]||0];});
+  var mnx=1e9,mny=1e9,mxx=-1e9,mxy=-1e9;T.forEach(function(q){mnx=Math.min(mnx,q[0]);mny=Math.min(mny,q[1]);mxx=Math.max(mxx,q[0]);mxy=Math.max(mxy,q[1]);});
+  var iv=[],cur=null,pk=null;
+  for(var i=0;i<pts.length;i++){var p=pts[i],x=(p[1]-track[0][1])*kx,y=(p[0]-la0)*ky,km=null;
+    if(x>=mnx-tol&&x<=mxx+tol&&y>=mny-tol&&y<=mxy+tol){var bd=tol*tol,bk=null;
+      for(var j=1;j<T.length;j++){var A=T[j-1],B=T[j],dx=B[0]-A[0],dy=B[1]-A[1],L2=dx*dx+dy*dy,t=L2?((x-A[0])*dx+(y-A[1])*dy)/L2:0;t=t<0?0:t>1?1:t;
+        var ex=A[0]+t*dx-x,ey=A[1]+t*dy-y,d2=ex*ex+ey*ey;if(d2<=bd){bd=d2;bk=A[2]+t*(B[2]-A[2]);}}
+      km=bk;}
+    if(km==null){if(cur){iv.push(cur);cur=null;}pk=null;continue;}
+    if(cur&&pk!=null&&Math.abs(km-pk)<=0.3){cur[0]=Math.min(cur[0],km);cur[1]=Math.max(cur[1],km);}else{if(cur)iv.push(cur);cur=[km,km];}pk=km;}
+  if(cur)iv.push(cur);
+  return hpIvMerge(iv).filter(function(x){return x[1]-x[0]>=0.2;});}
+// 코스(공개 형식)의 a~b km 부분만 새 코스로 · 시각은 원래 계획 간격 그대로 o.start 부터 · 지점: 안쪽 지점 + 시작/끝(지점 0.1km 안이면 그 지점)
+function hpSliceCourse(c,a,b,o){o=o||{};var cps=c.checkpoints||[],tr=c.track||[];if(tr.length<2)return null;var T=tr[tr.length-1][2];a=Math.max(0,a);b=Math.min(T,b);if(b-a<0.05)return null;
+  function at(k){for(var i=1;i<tr.length;i++)if(tr[i][2]>=k){var A=tr[i-1],B=tr[i],f=B[2]>A[2]?(k-A[2])/(B[2]-A[2]):0;return [A[0]+f*(B[0]-A[0]),A[1]+f*(B[1]-A[1])];}return [tr[tr.length-1][0],tr[tr.length-1][1]];}
+  function tAt(k){var prev=null;for(var i=0;i<cps.length;i++){var q=cps[i],qk=+q.km||0;if(qk>=k){if(!prev)return hpParseHM(q.arrive);var pk=+prev.km||0,t0=hpParseHM(prev.depart||prev.arrive),t1=hpParseHM(q.arrive);if(t1<t0)t1+=1440;return t0+(qk>pk?(k-pk)/(qk-pk):0)*(t1-t0);}prev=q;}return hpParseHM(prev?prev.depart||prev.arrive:"09:00");}
+  var t0=tAt(a),st=hpParseHM(o.start||"09:00"),sh=function(m){return hpHMs(m-t0+st);};
+  var near=function(k){return cps.filter(function(q){return Math.abs((+q.km||0)-k)<=0.1;})[0];};
+  var s0=near(a),e0=near(b),out=[];
+  function cp(q,k,name){var x={};for(var kk in q)x[kk]=q[kk];delete x.off;x.km=+(k-a).toFixed(3);if(name)x.name=name;return x;}
+  var sp=at(a);out.push(s0?cp(s0,a):{name:"이어서 시작 ("+a.toFixed(1)+"km 지점)",km:0,arrive:"",depart:"",lat:+sp[0].toFixed(6),lon:+sp[1].toFixed(6),radiusKm:0.05,note:c.name+" "+a.toFixed(1)+"km 지점부터"});
+  out[0].arrive=sh(t0);out[0].depart="";delete out[0].up;delete out[0].dn;
+  cps.forEach(function(q){var k=+q.km||0;if(k>a+0.1&&k<b-0.1&&q!==s0&&q!==e0){var x=cp(q,k);x.arrive=sh(hpParseHM(q.arrive)<t0-600?hpParseHM(q.arrive)+1440:hpParseHM(q.arrive));x.depart=q.depart?sh(hpParseHM(q.depart)<t0-600?hpParseHM(q.depart)+1440:hpParseHM(q.depart)):"";out.push(x);}});
+  var ep=at(b),tb=tAt(b);if(tb<t0)tb+=1440;
+  var e=e0?cp(e0,b):{name:"여기까지 ("+b.toFixed(1)+"km 지점)",km:+(b-a).toFixed(3),lat:+ep[0].toFixed(6),lon:+ep[1].toFixed(6),radiusKm:0.05,note:c.name+" "+b.toFixed(1)+"km 지점"};
+  e.arrive=sh(tb);e.depart="";if(e0&&e0.km>b+0.01){delete e.up;delete e.dn;}out.push(e);
+  // 첫 안쪽 지점의 오름/내림은 원래 구간을 거리 비율로 나눔
+  if(out.length>1&&out[1].up!=null){var orig=cps.filter(function(q){return q.name===out[1].name;})[0],pi=cps.indexOf(orig),pv=pi>0?cps[pi-1]:null;if(pv&&!s0){var f=((+orig.km)-a)/((+orig.km)-(+pv.km)||1);out[1].up=Math.round((+orig.up||0)*f);out[1].dn=Math.round((+orig.dn||0)*f);}}
+  var t2=[];tr.forEach(function(q){if(q[2]>a&&q[2]<b)t2.push([q[0],q[1],+(q[2]-a).toFixed(4)]);});t2.unshift([+sp[0].toFixed(6),+sp[1].toFixed(6),0]);t2.push([+ep[0].toFixed(6),+ep[1].toFixed(6),+(b-a).toFixed(4)]);
+  var res={};for(var k in c)res[k]=c[k];
+  res.id=o.id||(c.id+"-part-"+Date.now().toString(36));res.name=c.name+" · 이어서 "+a.toFixed(1)+"–"+b.toFixed(1)+"km";res.checkpoints=out;res.track=t2;res.part={of:c.id,a:+a.toFixed(3),b:+b.toFixed(3)};
+  res.notes="이어 걷기로 만든 코스: "+c.name+"의 "+a.toFixed(1)+"~"+b.toFixed(1)+"km (원래 코스 시간표 간격 그대로)\n"+String(c.notes||"");res.date=o.date||"";res.updatedAt=Date.now();
+  if(res.plan){var pl={};for(var q2 in res.plan)pl[q2]=res.plan[q2];delete pl.rule;res.plan=pl;}delete res.family;
+  return res;}
 // </hp-common>
 var crsGroupE=hpGroup,shortE=hpShort,famsE=hpFamilies,famTitleE=hpFamTitle;
 // index.json 항목 · tg(지나는 인증 지점)·pin·cpn(지점 이름)은 코스 트리용 (v8.5) — 산 목록(CAT)이 없으면 예전 값 유지
