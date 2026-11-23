@@ -117,6 +117,8 @@ body.keys select[data-key]{outline:2px solid #b45309}body.keys h1 [data-key]::af
 #keyCard .kh{display:flex;align-items:center;gap:10px;margin-bottom:6px}#keyCard .kh b{font-size:14px}#keyCard .kh span{color:#64748b;flex:1}
 #keyCard .kg{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:4px 16px}#keyCard h4{margin:8px 0 3px;font-size:12px;color:#334155}
 #keyCard .kr{display:flex;gap:8px;align-items:baseline;padding:1px 0}#keyCard kbd{flex:none;min-width:58px;font:600 11px/1.5 ui-monospace,monospace;background:#f1f5f9;border:1px solid #cbd5e1;border-bottom-width:2px;border-radius:4px;padding:0 5px;text-align:center}
+.gan{position:relative;left:-10px;top:-10px;width:20px;height:20px;border-radius:50%;background:#fff;border:2px solid #dc2626;color:#b91c1c;font:700 11px/16px system-ui;text-align:center}
+#p-gpx label.chk{white-space:nowrap;display:inline-flex;align-items:center;gap:4px}.garow{display:flex;gap:6px;align-items:center;padding:5px 0;border-top:1px solid #e5e7eb}.garow b{font-size:12px}
 .acc{position:relative;width:0;height:0}.acc i{position:absolute;left:-6px;top:-6px;width:12px;height:12px;border-radius:50%;background:#fff;border:2px solid #6b7280;box-sizing:border-box;cursor:pointer}.acc b{position:absolute;left:9px;top:-9px;font-size:11px;font-weight:700;color:#374151;white-space:nowrap;text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 3px #fff;cursor:pointer}.acc.cat i{left:-9px;top:-9px;width:18px;height:18px;border:3px dashed #b71c1c;background:#fde2e1}.acc.cat b{left:12px;top:-10px;color:#b71c1c}
 .nwk{position:relative;width:0;height:0}.nwk i{position:absolute;left:-11px;top:-11px;width:22px;height:22px;border-radius:50%;background:#e8590c;color:#fff;font-style:normal;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-sizing:border-box;box-shadow:0 1px 4px rgba(0,0,0,.45)}
 .nwk.ct i{background:#b71c1c}.nwk b{position:absolute;left:14px;top:-10px;background:rgba(255,255,255,.95);border:1px solid #e8590c;border-radius:6px;padding:0 5px;font-size:11px;white-space:nowrap;font-weight:700;color:#9a3412;pointer-events:none}
@@ -386,6 +388,98 @@ function gpxSlice(pa,pb){var p=GPX.pts,ra=nearestOn(p,pa,1),rb;if(!ra||ra.d>300)
   if(!rev||rb.i>ra.i||(rb.i===ra.i&&rb.t>=ra.t)){out.push([ra.ll[0],ra.ll[1],null]);for(i=ra.i;i<rb.i;i++)out.push(p[i]);out.push([rb.ll[0],rb.ll[1],null]);}
   else{out.push([ra.ll[0],ra.ll[1],null]);for(i=ra.i-1;i>=rb.i;i--)out.push(p[i]);out.push([rb.ll[0],rb.ll[1],null]);}
   return {pts:out,da:ra.d,db:rb.d};}
+// ============ GPX 보조 (v10.2, 2026-11-23 사용자 요청: 코스가 기준, GPX 는 보조 · 몇 m 단위 손질) ============
+// ① 차이 색칠(코스 선을 GPX 와의 거리로) ② 차이 목록(하나씩 'GPX로') ③ 두 점 찍어 그 사이만 GPX로 ④ 점 끌 때 GPX 에 붙기(자석)
+// 자동으로 바뀌는 것은 없음 · GPX 는 먼저 정리(쉬는 곳 맴돌기 → 한 점, 한두 점 튐 제거)하고 쓰며, 가져오는 부분의 곁길(갔다 돌아옴)은 뺌
+var GA={on:ls("ce.gaOn")!=="0",T:+(ls("ce.gaT")||10),mag:ls("ce.gaMag")!=="0",cache:null};
+var ALTK=false;document.addEventListener("keydown",function(e){if(e.key==="Alt")ALTK=true;},true);document.addEventListener("keyup",function(e){if(e.key==="Alt")ALTK=false;},true);window.addEventListener("blur",function(){ALTK=false;});
+function gxy(o,p){return [(p[1]-o[1])*111320*Math.cos(o[0]*RAD),(p[0]-o[0])*111320];}
+function gpxClean(pts){var a=pts.filter(function(p){return p&&isFinite(p[0])&&isFinite(p[1]);}).map(function(p){return [p[0],p[1],p[2]==null?null:p[2]];}),o=[],i;
+  // 한두 점 튐: 앞뒤 점끼리는 가까운데(30m) 그 점만 둘 다에서 40m 넘게 떨어짐
+  for(i=0;i<a.length;i++){if(i>0&&i<a.length-1&&hav(a[i-1],a[i+1])<30&&hav(a[i],a[i-1])>40&&hav(a[i],a[i+1])>40)continue;o.push(a[i]);}
+  // 쉬는 곳 맴돌기: 8m 안에 3점 넘게 모이면 가운데 한 점
+  var out=[];i=0;while(i<o.length){var j=i+1,sx=o[i][0],sy=o[i][1],n=1;while(j<o.length&&hav(o[i],o[j])<8){sx+=o[j][0];sy+=o[j][1];n++;j++;}
+    out.push(n>=3?[sx/n,sy/n,o[i][2]]:o[i]);i=n>=3?j:i+1;}
+  return out;}
+function gpxC(){if(!GPX)return null;if(!GPX.c){GPX.c=gpxClean(GPX.pts);GPX.grid=null;}return GPX.c;}
+// 선분 격자(50m 칸) — 가까운 선만 보고 거리를 잼
+function lineGrid(pts){var o=pts[0],G={},C=50;for(var i=1;i<pts.length;i++){var a=gxy(o,pts[i-1]),b=gxy(o,pts[i]),x0=Math.floor(Math.min(a[0],b[0])/C),x1=Math.floor(Math.max(a[0],b[0])/C),y0=Math.floor(Math.min(a[1],b[1])/C),y1=Math.floor(Math.max(a[1],b[1])/C);
+  for(var x=x0;x<=x1;x++)for(var y=y0;y<=y1;y++){var k=x+","+y;(G[k]=G[k]||[]).push(i);}}return {o:o,G:G,C:C,pts:pts};}
+function gridNear(g,p,maxd){var q=gxy(g.o,p),cx=Math.floor(q[0]/g.C),cy=Math.floor(q[1]/g.C),best=null,seen={},R=Math.ceil((maxd||60)/g.C);
+  for(var x=cx-R;x<=cx+R;x++)for(var y=cy-R;y<=cy+R;y++){var L2=g.G[x+","+y];if(!L2)continue;L2.forEach(function(i){if(seen[i])return;seen[i]=1;var r=projSeg(p,g.pts[i-1],g.pts[i]);if(!best||r.d<best.d)best={i:i,t:r.t,d:r.d,ll:r.ll};});}
+  return best&&best.d<=(maxd||60)?best:null;}
+function gpxGrid(){var c=gpxC();if(!c||c.length<2)return null;return GPX.grid||(GPX.grid=lineGrid(c));}
+// 경로 위치: 전체 km ↔ (구간 i, 점 k 앞, 좌표)
+function routeSig(){return SEG.map(function(s){return s.length+":"+(s.length?s[s.length-1][0].toFixed(6)+s[s.length-1][1].toFixed(6):"");}).join("|")+"#"+lenM([].concat.apply([],SEG)).toFixed(1);}
+function rAt(km){var g=0;for(var i=0;i<SEG.length;i++){var s=SEG[i];for(var k=1;k<s.length;k++){var d=hav(s[k-1],s[k])/1000;if(g+d>=km-1e-9){var f=d>0?(km-g)/d:0;return {i:i,k:k,ll:[s[k-1][0]+f*(s[k][0]-s[k-1][0]),s[k-1][1]+f*(s[k][1]-s[k-1][1])]};}g+=d;}}
+  var L=SEG[SEG.length-1];return {i:SEG.length-1,k:L.length,ll:[L[L.length-1][0],L[L.length-1][1]]};}
+function cpGkm(j){var g=0;for(var i=0;i<j;i++)g+=lenM(SEG[i])/1000;return g;}
+// 경로를 5m 간격으로 재서 GPX 와의 거리 · 차이 목록
+function gpxDiff(){var gg=gpxGrid();if(!gg||!META)return null;var key=routeSig()+"|"+GA.T+"|"+GPX.c.length;if(GA.cache&&GA.cache.key===key)return GA.cache;
+  var S=[],g=0;SEG.forEach(function(s,i){for(var k=1;k<s.length;k++){var a=s[k-1],b=s[k],d=hav(a,b),n=Math.max(1,Math.ceil(d/5));for(var q=(k===1&&i===0?0:1);q<=n;q++){var f=q/n,p=[a[0]+f*(b[0]-a[0]),a[1]+f*(b[1]-a[1])],r=gridNear(gg,p,60);S.push({i:i,p:p,km:(g+d*f)/1000,d:r?r.d:Infinity});}g+=d;}});
+  var T=GA.T,runs=[],cur=null;S.forEach(function(x,j){if(x.d>T&&isFinite(x.d)){if(cur&&x.km-cur.b<=0.01){cur.b=x.km;cur.j1=j;cur.max=Math.max(cur.max,x.d);}else{if(cur)runs.push(cur);cur={a:x.km,b:x.km,j0:j,j1:j,max:x.d};}}});if(cur)runs.push(cur);
+  runs=runs.filter(function(r){return r.b-r.a>=0.015;});
+  // 양 끝을 차이가 기준의 절반 아래로 떨어지는 곳까지 넓힘(이음매가 매끈하게)
+  runs.forEach(function(r){var j=r.j0;while(j>0&&isFinite(S[j-1].d)&&S[j-1].d>T/2&&r.a-S[j-1].km<0.1)j--;r.a=S[j].km;j=r.j1;while(j<S.length-1&&isFinite(S[j+1].d)&&S[j+1].d>T/2&&S[j+1].km-r.b<0.1)j++;r.b=S[j].km;
+    var sl=gaSlice(r.a,r.b);r.cm=Math.round((r.b-r.a)*1000);r.gm=sl?Math.round(lenM(sl.pts)):null;r.side=sl?sl.side:0;r.ok=!!sl;});
+  var cov=S.filter(function(x){return isFinite(x.d);}),avg=cov.length?cov.reduce(function(t,x){return t+x.d;},0)/cov.length:0;
+  return (GA.cache={key:key,S:S,runs:runs,covKm:cov.length*0.005,avg:avg});}
+// 가져올 GPX 부분: 경로 a~b km 양 끝에서 가장 가까운 GPX 사이 (정리한 GPX · 거꾸로 기록한 GPX 도) · 곁길(12m 안으로 되돌아온 고리) 뺌
+function gaSlice(a,b){var c=gpxC();if(!c)return null;var pa=rAt(a).ll,pb=rAt(b).ll,ra=nearestOn(c,pa,1),rb;if(!ra||ra.d>60)return null;rb=nearestOn(c,pb,ra.i);var out=[],i;
+  if(rb&&rb.d<=60&&(rb.i>ra.i||(rb.i===ra.i&&rb.t>=ra.t))){out.push([ra.ll[0],ra.ll[1],null]);for(i=ra.i;i<rb.i;i++)out.push([c[i][0],c[i][1],null]);out.push([rb.ll[0],rb.ll[1],null]);}
+  else{rb=nearestOn(c,pb,1);if(!rb||rb.d>60||rb.i>ra.i)return null;out.push([ra.ll[0],ra.ll[1],null]);for(i=ra.i-1;i>=rb.i;i--)out.push([c[i][0],c[i][1],null]);out.push([rb.ll[0],rb.ll[1],null]);}
+  var side=0,k=0;while(k<out.length-3){var cut=-1,len=0,far=0;for(var j=k+1;j<out.length;j++){len+=hav(out[j-1],out[j]);far=Math.max(far,hav(out[k],out[j]));if(len>2000)break;if(j>k+2&&len>60&&far>25&&hav(out[k],out[j])<12){cut=j;break;}}
+    if(cut>0){side+=Math.round(len);out.splice(k+1,cut-k-1);
+      // 곁길에서 돌아온 첫 점이 옆으로 꺾여 있으면(곁길 끝자락) 그 점도 뺌
+      for(var z=0;z<2&&k+2<out.length;z++){var e1=hav(out[k],out[k+1])+hav(out[k+1],out[k+2])-hav(out[k],out[k+2]);if(e1>4&&hav(out[k],out[k+1])<15)out.splice(k+1,1);else break;}}
+    else k++;}
+  var cm=(b-a)*1000,gm=lenM(out);if(gm>Math.max(cm*2.5,cm+150))return null; // 다른 길로 간 GPX
+  return {pts:out,side:side,da:ra.d,db:rb.d};}
+function isCatCp(c){if(!CAT||c.lat==null)return false;for(var id in CAT.targets){var t=CAT.targets[id];if(Math.abs(t.lat-c.lat)<5e-5&&Math.abs(t.lon-c.lon)<5e-5&&hav([t.lat,t.lon],[c.lat,c.lon])<3)return true;}return false;}
+// 경로 a~b km 를 GPX 로 · 사이 지점은 새 길 위로(산 목록 인증 지점은 좌표 그대로) · 지점 km 는 바로 맞추고 오름/내림·시각은 저장 때(공식 규칙·고도 모델)
+function gaApply(a,b,quiet){var sl=gaSlice(a,b);if(!sl){toast("그 사이 GPX 를 못 찾았어요 (60m 넘게 떨어졌거나 다른 길)");return false;}
+  var G=sl.pts,A=rAt(a),B=rAt(b),inner=[];for(var j=A.i+1;j<=B.i;j++)inner.push(j);
+  push();var cuts=[0],moved=0,kept=0;
+  inner.forEach(function(j){var c=CP[j],p=cpLL(j)||SEG[j][0],r=nearestOn(G,p,cuts.length?Math.max(1,Math.floor(cuts[cuts.length-1])):1);if(!r)r={i:1,t:0,ll:G[0]};var pos=r.i-1+r.t;if(pos<cuts[cuts.length-1])pos=cuts[cuts.length-1];cuts.push(pos);
+    if(isCatCp(c))kept++;else{c.lat=r6(r.ll[0]);c.lon=r6(r.ll[1]);moved++;}});
+  cuts.push(G.length-1);
+  function piece(p0,p1){var o=[],i0=Math.floor(p0),i1=Math.floor(p1);function at(x){var i=Math.min(G.length-2,Math.floor(x)),t=x-i;return [G[i][0]+t*(G[i+1][0]-G[i][0]),G[i][1]+t*(G[i+1][1]-G[i][1]),null];}
+    o.push(at(p0));for(var i=i0+1;i<=i1;i++)if(i>p0&&i<p1)o.push(G[i]);o.push(at(Math.min(p1,G.length-1-1e-9)));return o;}
+  var pcs=[];for(var q=1;q<cuts.length;q++)pcs.push(piece(cuts[q-1],cuts[q]));
+  var sA=SEG[A.i],sB=SEG[B.i];
+  if(A.i===B.i){SEG[A.i]=sA.slice(0,A.k).concat(pcs[0]).concat(sA.slice(B.k));HOW[A.i]="GPX";}
+  else{SEG[A.i]=sA.slice(0,A.k).concat(pcs[0]);HOW[A.i]="GPX";for(var m=1;m<pcs.length-1;m++){SEG[A.i+m]=pcs[m];HOW[A.i+m]="GPX";}SEG[B.i]=pcs[pcs.length-1].concat(sB.slice(B.k));HOW[B.i]="GPX";}
+  // 지점 km 를 새 경로 길이로
+  var g=0;CP.forEach(function(c,i){if(i){g+=lenM(SEG[i-1])/1000;c.km=+(CP[0].km+g).toFixed(2);}});
+  GA.cache=null;drawAll();renderPanels();
+  if(!quiet)toast("GPX로 바꿨어요 · 코스 "+Math.round((b-a)*1000)+"m → GPX "+Math.round(lenM(G))+"m"+(moved?" · 지점 "+moved+"곳 새 길 위로":"")+(kept?" · 인증 지점 "+kept+"곳 좌표 그대로":"")+(sl.side?" · GPX 곁길 "+sl.side+"m 뺌":"")+" · Ctrl+Z 되돌리기",6000);
+  return true;}
+// ① 차이 색칠
+var gDiff=null;
+function drawDiff(){if(!gDiff)gDiff=L.layerGroup().addTo(map);gDiff.clearLayers();if(!GA.on||!GPX||!META||!SHOW.gpx)return;var D=gpxDiff();if(!D)return;var T=GA.T;
+  function col(d){return !isFinite(d)?"#9ca3af":d<=T/2?"#16a34a":d<=T?"#f59e0b":"#dc2626";}
+  var run=null;D.S.forEach(function(x,j){var c=col(x.d);if(run&&run.c===c&&run.i===x.i)run.p.push(x.p);else{if(run&&run.p.length>1)L.polyline(run.p,{color:run.c,weight:5,opacity:.95,interactive:false}).addTo(gDiff);var prev=run?run.p[run.p.length-1]:null;run={c:c,i:x.i,p:prev&&run.i===x.i?[prev,x.p]:[x.p]};}});
+  if(run&&run.p.length>1)L.polyline(run.p,{color:run.c,weight:5,opacity:.95,interactive:false}).addTo(gDiff);
+  D.runs.forEach(function(r,n){var m=D.S[Math.round((r.j0+r.j1)/2)];if(m)L.marker(m.p,{icon:L.divIcon({className:"",iconSize:[0,0],html:'<div class="gan">'+(n+1)+'</div>'}),interactive:false,zIndexOffset:1800}).addTo(gDiff);});}
+// ③ 두 점 찍어 그 사이만
+function startGpxRange(){if(!META||!GPX){toast("GPX 를 먼저 여세요 (GPX 탭)");return;}endMode();mode={k:"garange",a:null,b:null};map.getContainer().style.cursor="crosshair";gaBar();}
+function gaPos(ll){var best=null,g=0;SEG.forEach(function(s,i){var gi=g;for(var k=1;k<s.length;k++){var r=projSeg(ll,s[k-1],s[k]),d0=hav(s[k-1],s[k]);if(!best||r.d<best.d)best={d:r.d,km:(gi+d0*r.t)/1000,ll:r.ll};gi+=d0;}g=gi;});return best;}
+function gaBar(){if(!mode||mode.k!=="garange")return;gDraw.clearLayers();var btn=[];
+  [mode.a,mode.b].forEach(function(x,n){if(x!=null)L.circleMarker(rAt(x).ll,{radius:7,color:"#1e40af",weight:3,fillColor:"#fff",fillOpacity:1,interactive:false}).bindTooltip(n?"끝":"처음",{permanent:true,direction:"top",offset:[0,-8]}).addTo(gDraw);});
+  var msg="<b>GPX로 바꿀 범위</b> · ";
+  if(mode.a==null)msg+="코스 위 처음 자리를 누르세요";else if(mode.b==null)msg+="끝 자리를 누르세요";
+  else{var a=Math.min(mode.a,mode.b),b=Math.max(mode.a,mode.b),sl=gaSlice(a,b);
+    if(sl){L.polyline(sl.pts.map(function(q){return [q[0],q[1]];}),{color:"#1e40af",weight:8,opacity:.55,interactive:false}).addTo(gDraw);
+      msg+="코스 "+Math.round((b-a)*1000)+"m → GPX "+Math.round(lenM(sl.pts))+"m"+(sl.side?" · 곁길 "+sl.side+"m 뺌":"");btn.push(h("button",{cls:"pri",text:"반영",onclick:function(){var ok=gaApply(a,b);endMode();if(ok)drawDiff();}}));}
+    else msg+="이 사이 GPX 를 못 찾았어요(60m 넘게 떨어졌거나 다른 길)";
+    btn.push(h("button",{text:"다시 고르기",onclick:function(){mode.a=mode.b=null;gaBar();}}));}
+  btn.push(h("button",{text:"취소 (Esc)",onclick:endMode}));setModebar(msg,btn);}
+function gaClick(ll){var p=gaPos(ll);if(!p||p.d>80){toast("코스 선 가까이를 누르세요");return;}if(mode.a==null||mode.b!=null){mode.a=p.km;mode.b=null;}else mode.b=p.km;gaBar();}
+// ④ 자석: 점을 끌 때 15m 안 GPX 선 위로 (Alt 누르면 안 붙음)
+function gaSnap(ll){if(!GA.mag||!GPX||ALTK)return null;var gg=gpxGrid();if(!gg)return null;var r=gridNear(gg,ll,15);return r?r.ll:null;}
+// 차이 목록에서 다음 곳으로
+var GA_I=-1;function gaNext(){var D=gpxDiff();if(!D||!D.runs.length){toast(GPX?"기준("+GA.T+"m)을 넘는 곳이 없어요":"GPX 를 먼저 여세요");return;}GA_I=(GA_I+1)%D.runs.length;gaFly(D.runs[GA_I],GA_I);}
+function gaFly(r,n){var p0=rAt(r.a).ll,p1=rAt(r.b).ll;map.fitBounds(L.latLngBounds([p0,p1]).pad(0.6),{maxZoom:19});toast((n+1)+"번 · "+(r.a).toFixed(2)+"~"+(r.b).toFixed(2)+"km · 최대 "+Math.round(r.max)+"m 차이");}
 function gpxApplyAll(moveCps){
   if(!GPX||!META)return;push();var p=GPX.pts,n=0,bad=[],from=1,snaps=[];
   CP.forEach(function(c,i){var q=cpLL(i);var r=q?nearestOn(p,q,from):null;if(r&&r.d<=300){snaps[i]=r;from=r.i;}else snaps[i]=null;});
@@ -448,7 +542,7 @@ var SHOW={net:true,gpx:true,tgt:true,hike:false};
 function showNet(){SHOW.net=true;ensureNet().then(function(){drawNet();}).catch(function(e){toast(e.message,6000);});}
 function drawNet(){gNet.clearLayers();if(!NET||!SHOW.net)return;(NET.bad||[]).forEach(function(w){L.polyline(w,{color:"#ffffff",weight:6,opacity:.85,interactive:false}).addTo(gNet);L.polyline(w,{color:"#262626",weight:3.5,opacity:.95,dashArray:"1 7",lineCap:"round",interactive:false}).addTo(gNet);});
   NET.ways.forEach(function(w){L.polyline(w,{color:"#1b8a3a",weight:2,opacity:.7,dashArray:"4 3",interactive:false}).addTo(gNet);});}
-function drawGpx(){gGpx.clearLayers();if(!GPX||!SHOW.gpx)return;L.polyline(GPX.pts.map(function(p){return [p[0],p[1]];}),{color:"#1e66f5",weight:4,opacity:.55,interactive:false}).addTo(gGpx);
+function drawGpx(){gGpx.clearLayers();GA.cache=null;if(typeof drawDiff==="function")setTimeout(drawDiff,0);if(!GPX||!SHOW.gpx)return;L.polyline(GPX.pts.map(function(p){return [p[0],p[1]];}),{color:"#1e66f5",weight:4,opacity:.55,interactive:false}).addTo(gGpx);
   GPX.wpts.forEach(function(w){L.circleMarker([w.lat,w.lon],{radius:4,color:"#1e66f5",weight:2,fillColor:"#fff",fillOpacity:1}).bindTooltip(w.name).addTo(gGpx);});}
 function segColor(i){return sel.t==="seg"&&sel.i===i?"#e8590c":CP[i].route==="fixed"?"#2b6cb0":"#2e6b45";}
 function drawRoute(){gRoute.clearLayers();
@@ -492,8 +586,8 @@ function drawEdit(){gEdit.clearLayers();var list=editSegs();paintPtbar(list);
       var m=L.marker([p[0],p[1]],{icon:vxIcon(picked),draggable:PM==="move"||PM==="add",zIndexOffset:1500,bubblingMouseEvents:false}).addTo(gEdit);
       m.bindTooltip((i+1)+"구간 "+k+"번 점",{direction:"top",offset:[0,-6]});
       m.on("dragstart",function(){push();});
-      m.on("drag",function(ev){var ll=ev.target.getLatLng();s[k]=[ll.lat,ll.lng,null];drawRoute();});
-      m.on("dragend",function(){editDone(i);});
+      m.on("drag",function(ev){var ll=ev.target.getLatLng(),sn=gaSnap([ll.lat,ll.lng]);if(sn){ev.target.setLatLng(sn);s[k]=[sn[0],sn[1],null];}else s[k]=[ll.lat,ll.lng,null];drawRoute();});
+      m.on("dragend",function(){editDone(i);GA.cache=null;drawDiff();});
       m.on("click",function(ev){L.DomEvent.stopPropagation(ev);
         if(PM==="del"){push();s.splice(k,1);editDone(i);}
         else if(PM==="range"){if(!PRANGE||PRANGE.i!==i){PRANGE={i:i,k:k};drawEdit();toast("끝 점을 누르면 두 점 사이의 점을 지워요");}
@@ -504,15 +598,15 @@ function drawEdit(){gEdit.clearLayers();var list=editSegs();paintPtbar(list);
     for(var k=1;k<s.length;k++){(function(k){var a=s[k-1],b=s[k];if(hav(a,b)<6)return;
       var g=L.marker([(a[0]+b[0])/2,(a[1]+b[1])/2],{icon:L.divIcon({className:"",iconSize:[0,0],html:'<div class="vg"></div>'}),draggable:true,zIndexOffset:200}).addTo(gEdit);
       g.on("dragstart",function(){push();s.splice(k,0,[(a[0]+b[0])/2,(a[1]+b[1])/2,null]);});
-      g.on("drag",function(ev){var ll=ev.target.getLatLng();s[k]=[ll.lat,ll.lng,null];drawRoute();});
-      g.on("dragend",function(){editDone(i);});})(k);}});}
+      g.on("drag",function(ev){var ll=ev.target.getLatLng(),sn=gaSnap([ll.lat,ll.lng]);if(sn){ev.target.setLatLng(sn);s[k]=[sn[0],sn[1],null];}else s[k]=[ll.lat,ll.lng,null];drawRoute();});
+      g.on("dragend",function(){editDone(i);GA.cache=null;drawDiff();});})(k);}});}
 // 점 추가: 고른 구간 중 경로가 가장 덜 늘어나는 자리에 끼워 넣는다
 // 점 편집(추가·삭제·범위 삭제) 중에는 지점·인증 지점·다른 구간 클릭보다 점 편집이 먼저
 function ptMode(){return PM!=="move"&&!mode&&editSegs().length>0;}
 function ptModeClick(ev){if(!ptMode())return false;if(ev&&ev.originalEvent)L.DomEvent.stopPropagation(ev);if(PM==="add")insertPoint([ev.latlng.lat,ev.latlng.lng]);return true;}
 function insertPoint(ll){var list=editSegs(),best=null;
   list.forEach(function(i){var s=SEG[i];for(var k=1;k<s.length;k++){var c=hav(s[k-1],ll)+hav(ll,s[k])-hav(s[k-1],s[k]);if(!best||c<best.c)best={i:i,k:k,c:c};}});
-  if(!best)return false;push();SEG[best.i].splice(best.k,0,[ll[0],ll[1],null]);editDone(best.i);return true;}
+  if(!best)return false;push();var sn=gaSnap(ll);if(sn)ll=sn;SEG[best.i].splice(best.k,0,[ll[0],ll[1],null]);editDone(best.i);GA.cache=null;drawDiff();return true;}
 function setPM(m){PM=m;PRANGE=null;ls("ce.pm",m);map.getContainer().style.cursor=m==="add"?"copy":"";drawCps();drawTgts();drawEdit();}
 function paintPtbar(list){var bar=$("ptbar");if(!list.length){bar.style.display="none";map.getContainer().style.cursor=mode?"crosshair":"";layoutBars();return;}
   bar.style.display="flex";bar.innerHTML="";
@@ -567,7 +661,7 @@ function drawTgts(){gTgt.clearLayers();if(TGT_EDIT&&!(sel.t==="tgt"&&sel.i===TGT
   if(on&&TGT_EDIT===x.id){var hp=L.marker(offsetE(p,r),{icon:L.divIcon({className:"",iconSize:[0,0],html:'<div class="rh" title="끌어서 인증 반경 조절"></div>'}),draggable:true,zIndexOffset:2000}).addTo(gTgt);
     hp.on("drag",function(ev){var ll=ev.target.getLatLng(),d=Math.max(30,Math.min(1500,Math.round(hav(p,[ll.lat,ll.lng])/10)*10));t.certM=d;CAT_DIRTY[x.id]=1;var ri=$("tgR");if(ri)ri.value=d;});
     hp.on("dragend",function(){drawTgts();renderPanels();});}});}
-function drawAll(fit){drawRoute();drawCps();drawEdit();drawTgts();drawAlts();if(fit)fitAll();}
+function drawAll(fit){drawRoute();drawCps();drawEdit();drawTgts();drawAlts();drawDiff();if(fit)fitAll();}
 // ============ 대안 코스 (META.extra.alts = [{id,label}], 지점 cutoffAlt) — 앱과 같은 형식 ============
 var gAlt=null,ALT_CACHE={};
 function altList(){return META&&META.extra&&Array.isArray(META.extra.alts)?META.extra.alts:[];}
@@ -647,6 +741,7 @@ function legTo(from,to){if(drawFollow&&NET){var r=netRoute(NET,from,to);if(r&&r.
 function finishDraw(){var i=mode.i,pb=segEnds(i)[1],last=mode.pts[mode.pts.length-1];var add=legTo(last,pb);push();SEG[i]=mode.pts.concat(add);HOW[i]=drawFollow&&NET?"그림(등산로)":"그림";endMode();toast((i+1)+"구간을 다시 그렸어요");}
 function onMapClick(ev){var ll=[ev.latlng.lat,ev.latlng.lng];
   if(mode.k==="addcp"){acClick(ll);return;}
+  if(mode.k==="garange"){gaClick(ll);return;}
   if(mode.k==="draw"){var last=mode.pts[mode.pts.length-1],add=legTo(last,ll);mode.pts=mode.pts.concat(add);mode.steps.push(add.length);paintDraw();}}
 // ============ 지점 추가 모드 (v9.5, 2026-11-20 사용자 요청 C안) ============
 // 경로를 누르면 이름이 자동으로 붙음(인증 지점 50m → 오픈스트리트맵 이름 있는 곳 → 고도로 무명봉·안부 / 지점 N) · 모드가 이어져서 계속 누름 · Esc/완료로 끝
@@ -1367,7 +1462,21 @@ function renderGpx(){var p=$("p-gpx");p.textContent="";
   if(!GPX)return;
   p.appendChild(h("div",{cls:"box"},[h("b",{text:GPX.name}),h("p",{cls:"msg",text:(lenM(GPX.pts)/1000).toFixed(2)+"km · 점 "+GPX.pts.length+" · 웨이포인트 "+GPX.wpts.length})]));
   if(!META){p.appendChild(h("button",{text:"이 GPX로 새 코스 만들기",onclick:function(){newFromGpx(GPX);}}));return;}
-  p.appendChild(h("div",{cls:"row"},[h("button",{cls:"pri",text:"전체 경로를 GPX로",onclick:function(){gpxApplyAll(false);}}),h("button",{text:"GPX로 + 지점도 GPX 위로",onclick:function(){gpxApplyAll(true);}})]));
+  // GPX 보조 (v10.2): 코스가 기준 · 필요한 곳만
+  p.appendChild(h("h3",{text:"코스와 비교 (코스가 기준 · GPX는 보조)"}));
+  var on=h("input",{type:"checkbox"});on.checked=GA.on;on.onchange=function(){GA.on=on.checked;ls("ce.gaOn",on.checked?"1":"0");drawDiff();};
+  var tsel=h("select",null,[5,10,15,30].map(function(v){return h("option",{value:v,text:v+"m"});}));tsel.value=String(GA.T);tsel.onchange=function(){GA.T=+tsel.value;ls("ce.gaT",tsel.value);GA.cache=null;drawDiff();renderGpx();};
+  var mg=h("input",{type:"checkbox"});mg.checked=GA.mag;mg.onchange=function(){GA.mag=mg.checked;ls("ce.gaMag",mg.checked?"1":"0");};
+  p.appendChild(h("div",{cls:"row",style:"flex-wrap:wrap;gap:10px;align-items:center"},[h("label",{cls:"chk"},[on," 차이 색칠"]),h("label",{cls:"chk"},["기준 ",tsel]),h("label",{cls:"chk",title:"점 이동·추가 때 15m 안 GPX 선 위로 붙어요. Alt 를 누르고 놓으면 안 붙어요."},[mg," 점 끌 때 GPX에 붙기(15m)"])]));
+  p.appendChild(h("p",{cls:"msg",html:"코스 선 색: <b style='color:#16a34a'>초록</b> "+(GA.T/2)+"m 안 · <b style='color:#f59e0b'>노랑</b> "+(GA.T/2)+"~"+GA.T+"m · <b style='color:#dc2626'>빨강</b> "+GA.T+"m 넘음 · <b style='color:#9ca3af'>회색</b> GPX 없음(60m 넘게 떨어짐). 아무것도 자동으로 바뀌지 않아요."}));
+  var D=gpxDiff();
+  if(D){p.appendChild(h("p",{cls:"msg num",text:"GPX 가 지난 코스 "+D.covKm.toFixed(2)+"km · 평균 차이 "+D.avg.toFixed(1)+"m · "+GA.T+"m 넘는 곳 "+D.runs.length+"곳"}));
+    D.runs.forEach(function(r,n){p.appendChild(h("div",{cls:"garow"},[h("div",{style:"flex:1;min-width:0"},[h("b",{text:(n+1)+" · "+r.a.toFixed(2)+"~"+r.b.toFixed(2)+"km · 최대 "+Math.round(r.max)+"m"}),
+        h("div",{cls:"msg num",text:r.ok?"코스 "+r.cm+"m → GPX "+r.gm+"m"+(r.side?" · GPX 곁길 "+r.side+"m 뺌":""):"⚠ 이 사이 GPX 가 다른 길로 가요 — 바꾸지 않는 게 좋아요"})]),
+      h("button",{cls:"sm",text:"보기",onclick:function(){GA_I=n;gaFly(r,n);}}),h("button",{cls:"sm pri",text:"GPX로",disabled:!r.ok,onclick:function(){if(gaApply(r.a,r.b))renderGpx();}})]));});}
+  p.appendChild(h("div",{cls:"row"},[h("button",{text:"두 점 찍어 그 사이만 GPX로",title:"Shift+G",onclick:startGpxRange}),h("button",{text:"다음 차이 곳 보기",title:"G",onclick:gaNext})]));
+  p.appendChild(h("h3",{text:"한꺼번에 바꾸기"}));
+  p.appendChild(h("div",{cls:"row"},[h("button",{text:"전체 경로를 GPX로",onclick:function(){gpxApplyAll(false);}}),h("button",{text:"GPX로 + 지점도 GPX 위로",onclick:function(){gpxApplyAll(true);}})]));
   p.appendChild(h("p",{cls:"msg",text:"지점마다 GPX에서 가장 가까운 곳을 찾아 그 사이를 GPX 경로로 바꿔요. 한 구간만 바꾸려면 구간 탭에서 'GPX로 바꾸기'."}));
   p.appendChild(h("button",{text:"지도에서 GPX 보기",onclick:function(){map.fitBounds(L.latLngBounds(GPX.pts.map(function(q){return [q[0],q[1]];})).pad(0.1));}}));}
 
@@ -1604,6 +1713,8 @@ var KEYS=[
  {k:"1~4",g:"경로",l:"점 편집: 이동·추가·삭제·범위 삭제 (구간·지점을 고른 뒤)",info:1},
  {k:"-",g:"경로",l:"점 줄이기 (고를 거리 목록 열기)",b:"#tolSel",fn:function(){var t=$("tolSel");if(!t||!t.offsetParent)return keyNo("구간을 먼저 고르세요");t.focus();try{t.showPicker();}catch(e){}}},
  {k:"D",g:"경로",l:"고른 구간 다시 그리기",b:"=다시 그리기"},{k:"M",g:"경로",l:"고른 구간 등산로에 맞추기",b:"=등산로에 맞추기"},
+ {k:"G",g:"GPX",l:"다음 차이 곳 보기 (GPX 탭 목록 차례로)",fn:function(){gaNext();}},{k:"Shift+G",g:"GPX",l:"두 점 찍어 그 사이만 GPX로",b:"=두 점 찍어 그 사이만 GPX로",fn:function(){startGpxRange();}},
+ {k:"Alt+끌기",g:"GPX",l:"점을 놓을 때 GPX 에 안 붙게",info:1},
  {k:"R",g:"계산",l:"시각 다시 계산 (공식 시간 규칙 코스는 규칙으로)",b:"=고도로 시각 다시 계산",fn:function(){if(!META)return keyNo("코스를 먼저 여세요");if(hasRule()){applyRule();renderPanels();return;}var b=keyBtn("=고도로 시각 다시 계산");if(b&&!b.disabled)b.click();else keyNo();}},
  {k:"F",g:"보기",l:"코스 전체 보기 (지도 맞추기)",b:"=지도 맞추기",fn:function(){if(!META)return keyNo("코스를 먼저 여세요");fitAll();}},
  {k:"Ctrl+Z",s:"^Z",g:"공통",l:"되돌리기",b:"#undoB"},{k:"Ctrl+Y",s:"^Y",g:"공통",l:"다시 하기 (Ctrl+Shift+Z)",b:"#redoB"},
@@ -1927,7 +2038,7 @@ window.__ce={openText:openText,state:function(){return {META:META,CP:CP,SEG:SEG,
   gpxApplyAll:gpxApplyAll,kmFromRoute:kmFromRoute,upload:upload,uploadCatalog:uploadCatalog,connect:connect,undo:undo,redo:redo,openCloud:openCloud,
   setRepo:function(r,t){REPO=r;TOKEN=t;},map:map,
   recalcModel:recalcModel,beforeSave:beforeSave,routeChanged:routeChanged,resample:resample,setEle:function(f){ELE={};ELE_SRC='';window.__eleFn=f;},eleFix:eleFix,eleSrc:function(v){if(v!==undefined)ELE_SRC=v;return ELE_SRC;},pace:function(p){if(p!==undefined)setPace(p,true);return PACE;},
-  applyRule:applyRule,hasRule:hasRule,beforeSave:beforeSave,startAddCp:startAddCp,endMode:endMode,acAddAllCat:acAddAllCat,acUndo:acUndo,acCatCands:acCatCands,acPoiCands:acPoiCands,acPoi:function(){return AC_POI;},nwStart:nwStart,nwState:function(){return NW;},nwRefreshNotes:nwRefreshNotes,nwRetry:nwRetry,nwDraft:nwDraft,nwResume:nwResume,netBox:function(){return NET_BOX;},nwClick:nwClick,nwBuild:nwBuild,nwSearch:function(q){NW.q=q;nwSearch();},nwChoose:nwChoose,nwPref:nwPref,nwInsertTgt:nwInsertTgt,nwTargets:nwTargets,nwLabel:nwLabel,netRoute:netRoute,ensureNet:ensureNet,
+  applyRule:applyRule,hasRule:hasRule,beforeSave:beforeSave,gpxDiff:gpxDiff,gaApply:gaApply,gaSlice:gaSlice,gaSnap:gaSnap,gpxClean:gpxClean,startGpxRange:startGpxRange,setGpx:function(g){GPX=g;drawGpx();renderPanels();},GA:GA,startAddCp:startAddCp,endMode:endMode,acAddAllCat:acAddAllCat,acUndo:acUndo,acCatCands:acCatCands,acPoiCands:acPoiCands,acPoi:function(){return AC_POI;},nwStart:nwStart,nwState:function(){return NW;},nwRefreshNotes:nwRefreshNotes,nwRetry:nwRetry,nwDraft:nwDraft,nwResume:nwResume,netBox:function(){return NET_BOX;},nwClick:nwClick,nwBuild:nwBuild,nwSearch:function(q){NW.q=q;nwSearch();},nwChoose:nwChoose,nwPref:nwPref,nwInsertTgt:nwInsertTgt,nwTargets:nwTargets,nwLabel:nwLabel,netRoute:netRoute,ensureNet:ensureNet,
   paceTrack:paceTrack,paceSamples:paceSamples,paceSegs:paceSegs,paceFit:paceFit,paceSolve:paceSolve,planCps:planCps,fetchEle:fetchEle,hpModelMin:hpModelMin,hpPlan:hpPlan,hm:hm};
 setLayer(LAYERS.hasOwnProperty(startLayer)?startLayer:"지형 (OpenTopoMap)");
 renderPanels();
