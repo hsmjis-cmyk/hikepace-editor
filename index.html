@@ -1358,6 +1358,30 @@ function hpSliceCourse(c,a,b,o){o=o||{};var cps=c.checkpoints||[],tr=c.track||[]
   res.notes="이어 걷기로 만든 코스: "+c.name+"의 "+a.toFixed(1)+"~"+b.toFixed(1)+"km (원래 코스 시간표 간격 그대로)\n"+String(c.notes||"");res.date=o.date||"";res.updatedAt=Date.now();
   if(res.plan){var pl={};for(var q2 in res.plan)pl[q2]=res.plan[q2];delete pl.rule;res.plan=pl;}delete res.family;
   return res;}
+// ---- 인증 지점 ↔ 코스 지점 좌표 맞추기 (v10.6, 2026-11-25 사용자 요청) ----
+// 인증 지점 이름의 코스 지점은 산 목록 좌표를 그대로 쓴다. 같은 곳으로 보는 기준: peak 지점이 인증 지점 40m 안,
+// 또는 이름이 같거나 한쪽이 다른 쪽을 포함(괄호 '(복귀)' 등은 빼고 비교, 엉뚱한 곳과 섞이지 않게 인증 반경 certM 안일 때만 — '우도 담수장'↔'우도 등대' 같은 것 제외)
+function hpTgNames(t){var a=[t.n,t.sub,t.sub?t.n+" "+t.sub:null,t.sub?t.n+t.sub:null];return a.filter(function(x){return x;}).map(function(x){return hpNorm(hpBaseName(x));}).filter(function(x){return x.length>=2;});}
+function hpCpIsTarget(cp,t){if(!cp||cp.lat==null||!t||t.lat==null)return false;var d=hpDistM([+cp.lat,+cp.lon],[t.lat,t.lon]);
+  if(cp.peak&&d<=40)return true;if(d>hpCertM(t))return false;var a=hpNorm(hpBaseName(cp.name));if(a.length<2)return false;
+  return hpTgNames(t).some(function(b){return a===b||a.indexOf(b)>=0||b.indexOf(a)>=0;});}
+// 점 p 와 선분 a-b 사이 거리(m, 짧은 거리라 평면 근사)
+function hpSegDistM(p,a,b){var k=Math.cos(p[0]*Math.PI/180),ax=(a[1]-p[1])*k,ay=a[0]-p[0],bx=(b[1]-p[1])*k,by=b[0]-p[0],dx=bx-ax,dy=by-ay,L=dx*dx+dy*dy,u=L>0?Math.max(0,Math.min(1,-(ax*dx+ay*dy)/L)):0;
+  var x=ax+u*dx,y=ay+u*dy;return Math.sqrt(x*x+y*y)*111320;}
+function hpTrackNearM(track,p){var best=Infinity;if(!track||!track.length)return best;if(track.length===1)return hpDistM(p,track[0]);
+  for(var i=1;i<track.length;i++){var d=hpSegDistM(p,track[i-1],track[i]);if(d<best)best=d;}return best;}
+// 코스에서 산 목록 좌표와 tol(m, 기본 2) 넘게 다른 인증 지점 지점 → [{i,name,id,tn,d}]
+function hpTargetMismatch(c,targets,tol){tol=tol==null?2:tol;var out=[],cps=c.checkpoints||[];
+  var pts=c.track&&c.track.length?c.track:cps.filter(function(x){return x.lat!=null;}).map(function(x){return [+x.lat,+x.lon];});
+  var ids=hpPassTargets(pts,targets);cps.forEach(function(cp,i){if(cp.lat==null)return;var best=null;
+    ids.forEach(function(id){var t=targets[id];if(!hpCpIsTarget(cp,t))return;var d=hpDistM([+cp.lat,+cp.lon],[t.lat,t.lon]);if(!best||d<best.d)best={i:i,name:cp.name,id:id,tn:t.n+(t.sub?" "+t.sub:""),d:Math.round(d*10)/10};});
+    if(best&&best.d>tol)out.push(best);});return out;}
+// 인증 지점을 from → to 로 옮길 때 이 코스에서 같이 옮길 지점(옛 좌표 tol 2m 안) → null 또는 {course(바꾼 사본), cps:[i…], names:[…], pass: 트랙이 새 좌표 certM 안을 지나는지, gapM}
+function hpMoveTargetInCourse(c,from,to,t,tol){tol=tol==null?2:tol;var hit=[];
+  (c.checkpoints||[]).forEach(function(cp,i){if(cp.lat!=null&&hpDistM([+cp.lat,+cp.lon],[from.lat,from.lon])<=tol)hit.push(i);});
+  if(!hit.length)return null;var o=JSON.parse(JSON.stringify(c));hit.forEach(function(i){o.checkpoints[i].lat=to.lat;o.checkpoints[i].lon=to.lon;});
+  var lim=hpCertM(t||{}),gap=o.track&&o.track.length?hpTrackNearM(o.track,[to.lat,to.lon]):0;
+  return {course:o,cps:hit,names:hit.map(function(i){return o.checkpoints[i].name;}),pass:gap<=lim,gapM:Math.round(gap),certM:lim};}
 // </hp-common>
 var crsGroupE=hpGroup,shortE=hpShort,famsE=hpFamilies,famTitleE=hpFamTitle;
 // index.json 항목 · tg(지나는 인증 지점)·pin·cpn(지점 이름)은 코스 트리용 (v8.5) — 산 목록(CAT)이 없으면 예전 값 유지
@@ -1499,14 +1523,45 @@ function delCloud(e){if(!TOKEN){toast("저장소 탭에서 토큰을 먼저 넣�
     .then(function(){renderRepo();toast("'"+e.name+"' 삭제했어요 · 앱은 다음 동기화 때 지워요",6000);})
     .catch(function(er){toast("삭제 실패: "+er.message,7000);});}
 function uploadCatalog(){if(!CAT)return;if(!TOKEN||!CAT_SHA){toast("저장소에서 받은 산 목록만 올릴 수 있어요 (저장소 탭에서 연결)",6000);return;}
-  var n=Object.keys(CAT_DIRTY).length;
+  var n=Object.keys(CAT_DIRTY).length,plan=[],go=false;
   // 산 목록은 파일 하나(catalog/catalog.json)에 바로 덮어써요. 버전(rev)은 올리지 않고, 처음 위치는 target.orig에 남겨 둬요.
-  ghGetJson(CAT_PATH).then(function(r){var c=r.data;Object.keys(CAT_DIRTY).forEach(function(id){var t=c.targets[id];if(!t)return;var src=CAT.targets[id],m=src.certM;if(+m>0)t.certM=+m;else delete t.certM;
-      if(src.lat!=null){var orig=t.orig||src.orig||{lat:t.lat,lon:t.lon,approx:!!t.approx};t.lat=src.lat;t.lon=src.lon;
-        if(orig.lat===t.lat&&orig.lon===t.lon){if(orig.approx)t.approx=true;else delete t.approx;delete t.orig;}else{t.orig=orig;t.approx=false;}}});
-    var d=new Date(),p2=function(x){return ("0"+x).slice(-2);};c.updated=d.getFullYear()+"-"+p2(d.getMonth()+1)+"-"+p2(d.getDate())+" "+p2(d.getHours())+":"+p2(d.getMinutes());
-    return ghPutJson(CAT_PATH,c,"코스 편집기: 인증 지점 "+n+"곳 (위치·반경)",r.sha).then(function(sha){setCatalog(c,sha);});})
-  .then(function(){toast("산 목록에 반영했어요 · 앱: 설정 → 산 목록 업데이트 → 지금 확인 (앱 v6.2 이상)",7000);renderPanels();}).catch(function(e){toast("실패: "+e.message,6000);});}
+  // v10.6: 인증 지점을 옮기면 옛 좌표 2m 안에 있던 코스 지점도 묻고 같이 옮김(km·시각 그대로) — 코스 지점은 산 목록 좌표를 그대로 써야 해서
+  ghGetJson(CAT_PATH).then(function(r){
+    var moves=Object.keys(CAT_DIRTY).map(function(id){var o=r.data.targets[id],t=CAT.targets[id];if(!o||!t||o.lat==null||t.lat==null)return null;
+      if(hpDistM([o.lat,o.lon],[t.lat,t.lon])<0.05)return null;return {id:id,from:{lat:o.lat,lon:o.lon},to:{lat:t.lat,lon:t.lon},t:t};}).filter(Boolean);
+    return tgMovePlan(moves).then(function(p){plan=p;if(plan.length){var warn=[];plan.forEach(function(x){x.warn.forEach(function(w){warn.push(w);});});
+        go=confirm("이 지점을 쓰는 코스 "+plan.length+"개도 같이 옮길까요?\n(지점 좌표만 바뀌고 km·시각은 그대로)\n\n"+plan.map(function(x){return "- "+x.course.name+": "+x.names.join(", ");}).join("\n")+
+          (warn.length?"\n\n⚠ 옮긴 뒤 경로가 인증 반경 밖이에요(코스 경로를 고쳐야 해요):\n"+warn.map(function(w){return "- "+w;}).join("\n"):""));}
+      var c=r.data;Object.keys(CAT_DIRTY).forEach(function(id){var t=c.targets[id];if(!t)return;var src=CAT.targets[id],m=src.certM;if(+m>0)t.certM=+m;else delete t.certM;
+        if(src.lat!=null){var orig=t.orig||src.orig||{lat:t.lat,lon:t.lon,approx:!!t.approx};t.lat=src.lat;t.lon=src.lon;
+          if(orig.lat===t.lat&&orig.lon===t.lon){if(orig.approx)t.approx=true;else delete t.approx;delete t.orig;}else{t.orig=orig;t.approx=false;}}});
+      var d=new Date(),p2=function(x){return ("0"+x).slice(-2);};c.updated=d.getFullYear()+"-"+p2(d.getMonth()+1)+"-"+p2(d.getDate())+" "+p2(d.getHours())+":"+p2(d.getMinutes());
+      return ghPutJson(CAT_PATH,c,"코스 편집기: 인증 지점 "+n+"곳 (위치·반경)",r.sha).then(function(sha){setCatalog(c,sha);});});})
+  .then(function(){return go?tgMoveWrite(plan):0;})
+  .then(function(k){var w=go?plan.filter(function(x){return x.warn.length;}).length:0;
+    toast("산 목록에 반영했어요"+(k?" · 코스 "+k+"개 지점도 옮김":"")+(w?" · ⚠ 경로가 인증 반경 밖인 코스 "+w+"개":"")+" · 앱: 설정 → 산 목록 업데이트·지금 동기화",8000);renderPanels();})
+  .catch(function(e){toast("실패: "+e.message,6000);});}
+// 옮긴 인증 지점을 쓰는 코스 찾기: 목록(index.json)의 tg 에 그 지점이 있는 코스만 받아서 hpMoveTargetInCourse
+function tgMovePlan(moves){if(!moves.length)return Promise.resolve([]);
+  var ids={};moves.forEach(function(m){ids[m.id]=1;});
+  return (LIST&&LIST.cloud?Promise.resolve(LIST.cloud):ghGetJson(CS_DIR+"index.json").then(function(ix){return ix.missing?[]:ix.data.courses||[];})).then(function(list){
+    var cand=list.filter(function(e){return (e.tg||[]).some(function(id){return ids[id];});});
+    return Promise.all(cand.map(function(e){var path=e.path||CS_DIR+e.id+".json";return ghGetJson(path).then(function(g){if(g.missing)return null;
+      var c=g.data,names=[],cps={},warn=[];moves.forEach(function(m){var R=hpMoveTargetInCourse(c,m.from,m.to,m.t,2);if(!R)return;c=R.course;R.cps.forEach(function(i){cps[i]=1;});names=names.concat(R.names);
+        if(!R.pass)warn.push(c.name+" — "+(m.t.n+(m.t.sub?" "+m.t.sub:""))+" 반경 "+R.certM+"m, 경로까지 "+R.gapM+"m");});
+      return names.length?{path:path,sha:g.sha,course:c,names:names,cps:Object.keys(cps).map(Number),warn:warn}:null;}).catch(function(){return null;});}))
+    .then(function(a){return a.filter(Boolean);});});}
+// 같이 옮긴 코스 저장: updatedAt 올려서 앱 '지금 동기화'가 받게, 목록(index.json)도 갱신 · 지금 열려 있는 코스면 화면의 지점도 옮김
+function tgMoveWrite(plan){var now=Date.now();
+  return plan.reduce(function(p,x){return p.then(function(){x.course.updatedAt=now;return ghPutJson(x.path,x.course,"코스 편집기: 인증 지점 옮김 → "+x.course.name+" ("+x.names.join(", ")+")",x.sha);});},Promise.resolve())
+  .then(function(){function step(retry){return ghGetJson(CS_DIR+"index.json").then(function(ix){if(ix.missing)return;var data=ix.data;
+      plan.forEach(function(x){var prev=(data.courses||[]).filter(function(e){return e.id===x.course.id;})[0];
+        data.courses=(data.courses||[]).filter(function(e){return e.id!==x.course.id;}).concat([indexEntry(x.course,x.path,prev&&prev.by||"pc",prev)]);});
+      data.courses.sort(function(a,b){return String(a.name).localeCompare(String(b.name),"ko");});data.updated=now;
+      return ghPutJson(CS_DIR+"index.json",data,"코스 편집기: 인증 지점 옮김 · 코스 "+plan.length+"개",ix.sha).then(function(){if(LIST)LIST.cloud=data.courses;});})
+      .catch(function(e){if(e.status===409&&!retry)return step(true);throw e;});}return step(false);})
+  .then(function(){plan.forEach(function(x){if(!META||META.id!==x.course.id)return;x.cps.forEach(function(i){if(CP[i]){CP[i].lat=x.course.checkpoints[i].lat;CP[i].lon=x.course.checkpoints[i].lon;}});META.updatedAt=now;drawAll();});
+    return plan.length;});}
 function renderRepo(){var p=$("p-repo");p.textContent="";
   var ri=h("input",{value:REPO,placeholder:"아이디/저장소"}),ti=h("input",{type:"password",value:TOKEN,placeholder:"github_pat_…"});
   p.appendChild(h("label",{cls:"f"},["저장소 (앱 설정의 '산 목록 저장소'와 같게)",ri]));
@@ -2008,7 +2063,7 @@ window.__ce={openText:openText,state:function(){return {META:META,CP:CP,SEG:SEG,
   setRepo:function(r,t){REPO=r;TOKEN=t;},map:map,
   recalcModel:recalcModel,beforeSave:beforeSave,routeChanged:routeChanged,resample:resample,setEle:function(f){ELE={};ELE_SRC='';window.__eleFn=f;},eleFix:eleFix,eleSrc:function(v){if(v!==undefined)ELE_SRC=v;return ELE_SRC;},pace:function(p){if(p!==undefined)setPace(p,true);return PACE;},
   applyRule:applyRule,hasRule:hasRule,beforeSave:beforeSave,gpxDiff:gpxDiff,gaApply:gaApply,gaSlice:gaSlice,gaSnap:gaSnap,gpxClean:gpxClean,startGpxRange:startGpxRange,setGpx:function(g){GPX=g;drawGpx();renderPanels();},GA:GA,startAddCp:startAddCp,endMode:endMode,acAddAllCat:acAddAllCat,acUndo:acUndo,acCatCands:acCatCands,acPoiCands:acPoiCands,acPoi:function(){return AC_POI;},nwStart:nwStart,nwState:function(){return NW;},nwRefreshNotes:nwRefreshNotes,nwRetry:nwRetry,nwDraft:nwDraft,nwResume:nwResume,netBox:function(){return NET_BOX;},nwClick:nwClick,nwBuild:nwBuild,nwSearch:function(q){NW.q=q;nwSearch();},nwChoose:nwChoose,nwPref:nwPref,nwInsertTgt:nwInsertTgt,nwTargets:nwTargets,nwLabel:nwLabel,netRoute:netRoute,ensureNet:ensureNet,
-  loadReportFit:loadReportFit,reportFit:function(v){if(v!==undefined){RFIT=v;RFIT_MSG="";}return RFIT;},planCps:planCps,fetchEle:fetchEle,hpModelMin:hpModelMin,hpPlan:hpPlan,hm:hm};
+  loadReportFit:loadReportFit,tgMovePlan:tgMovePlan,uploadCatalog:uploadCatalog,reportFit:function(v){if(v!==undefined){RFIT=v;RFIT_MSG="";}return RFIT;},planCps:planCps,fetchEle:fetchEle,hpModelMin:hpModelMin,hpPlan:hpPlan,hm:hm};
 setLayer(LAYERS.hasOwnProperty(startLayer)?startLayer:"지형 (OpenTopoMap)");
 renderPanels();
 if(TOKEN)connect();
