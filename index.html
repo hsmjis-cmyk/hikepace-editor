@@ -1161,7 +1161,10 @@ function hpCourseTree(courses,programs,targets,opts){opts=opts||{};var q=(opts.q
       p.targets.forEach(function(id){if(byT[id]){plan++;byT[id].forEach(function(c){if(!set[c.id]){set[c.id]=1;cnt++;}});}});
       var P={p:p,trail:trail,courses:cnt,plan:plan,total:p.targets.length,regions:null,mts:null,list:null};
       if(trail){P.list=Object.keys(set).map(function(cid){var c=vis.filter(function(x){return x.id===cid;})[0],tg=p.targets.filter(function(id){return (c.tg||[]).indexOf(id)>=0;});
-          return {c:c,tg:tg,first:p.targets.indexOf(tg[0])};}).sort(function(a,b){return a.first-b.first||String(a.c.name).localeCompare(String(b.c.name),"ko");});}
+          return {c:c,tg:tg,first:p.targets.indexOf(tg[0])};});
+        // 코스 이름이 모두 'N코스/N구간'이면 번호 순(1 → 1-1 → 2 …), 아니면 지나는 인증 지점 순
+        var byNo=P.list.length>1&&P.list.every(function(x){return hpCourseNo(x.c.name);});
+        P.list.sort(function(a,b){return (byNo?hpCourseNoCmp(a.c.name,b.c.name):0)||a.first-b.first||String(a.c.name).localeCompare(String(b.c.name),"ko");});}
       else{var seqd=p.targets.some(function(id){return targets[id]&&targets[id].seq;});
         var mts=p.targets.filter(function(id){return targets[id]&&(byT[id]||(opts.all&&!q));}).map(function(id){
           var cs=[],seen={};(byT[id]||[]).forEach(function(c){(fam[c.id]||[c]).forEach(function(x){if(!seen[x.id]&&visId[x.id]){seen[x.id]=1;cs.push(x);}});});
@@ -1382,6 +1385,11 @@ function hpMoveTargetInCourse(c,from,to,t,tol){tol=tol==null?2:tol;var hit=[];
   if(!hit.length)return null;var o=JSON.parse(JSON.stringify(c));hit.forEach(function(i){o.checkpoints[i].lat=to.lat;o.checkpoints[i].lon=to.lon;});
   var lim=hpCertM(t||{}),gap=o.track&&o.track.length?hpTrackNearM(o.track,[to.lat,to.lon]):0;
   return {course:o,cps:hit,names:hit.map(function(i){return o.checkpoints[i].name;}),pass:gap<=lim,gapM:Math.round(gap),certM:lim};}
+// 코스·구간 번호 순서 (v10.7, 2026-11-26 사용자 요청: 올레 1코스 → 1-1코스 → 2코스 …)
+// 이름의 "N코스/N구간", "N-M코스", "N-A코스" 를 [N, M, A] 로 읽어 비교(hpCourseTree: 프로그램 안 코스가 모두 번호가 있을 때만 이 순서)
+function hpCourseNo(name){var m=String(name||"").match(/(\d+)(?:\s*-\s*(\d+|[A-Za-z]))?\s*(?:코스|구간)/);if(!m)return null;
+  var sub=m[2]||"",n2=/^\d+$/.test(sub)?+sub:0,L=/^[A-Za-z]$/.test(sub)?sub.toUpperCase():"";return [+m[1],n2,L];}
+function hpCourseNoCmp(a,b){var x=hpCourseNo(a),y=hpCourseNo(b);if(!x||!y)return 0;return x[0]-y[0]||x[1]-y[1]||(x[2]<y[2]?-1:x[2]>y[2]?1:0);}
 // </hp-common>
 var crsGroupE=hpGroup,shortE=hpShort,famsE=hpFamilies,famTitleE=hpFamTitle;
 // index.json 항목 · tg(지나는 인증 지점)·pin·cpn(지점 이름)은 코스 트리용 (v8.5) — 산 목록(CAT)이 없으면 예전 값 유지
